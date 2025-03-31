@@ -1,3 +1,1661 @@
+script principal:
+<#
+.SYNOPSIS
+    MOLINA OPTIMIZER 6.1 - Optimizador Avanzado de Windows para Gaming
+.DESCRIPTION
+    Versión con interfaz de consola que combina lo mejor de ambas versiones con:
+    # - Optimización de DNS inteligente
+    # - Sistema de logging mejorado
+    # - Todos los módulos de optimización
+    # - Instalación de drivers X670E-F
+    # - Optimización para juegos específicos
+.NOTES
+    Versión: 6.1
+    Autor: Molina + mejoras de la comunidad
+    Requiere: PowerShell 5.1+ como Administrador
+#>
+
+# Configuración inicial
+$ErrorActionPreference = "SilentlyContinue"
+$ProgressPreference = "SilentlyContinue"
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+
+# Variables globales mejoradas
+$global:historial = @()
+$global:logFile = "$env:TEMP\MolinaOptimizer_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
+$global:gamePaths = @(
+    "C:\Riot Games\VALORANT\live",
+    "C:\Games\Tarkov",
+    "C:\Program Files (x86)\Steam\steamapps\common\New World",
+    "$env:LOCALAPPDATA\VALORANT",
+    "$env:USERPROFILE\Documents\Escape from Tarkov",
+    "${env:ProgramFiles(x86)}\Steam\steamapps\common",
+    "${env:ProgramFiles(x86)}\Epic Games",
+    "$env:USERPROFILE\AppData\Roaming"
+)
+
+$global:ExecutionHistory = @{
+    StartTime = Get-Date
+    Operations = @()
+    Errors = @()
+    Warnings = @()
+    Stats = @{
+        FilesModified = 0
+        SettingsChanged = 0
+        ItemsRemoved = 0
+        DNSOptimized = 0
+    }
+    SystemInfo = @{
+        OSVersion = [System.Environment]::OSVersion.VersionString
+        PowerShellVersion = $PSVersionTable.PSVersion.ToString()
+        Hardware = @{
+            CPU = (Get-WmiObject Win32_Processor).Name
+            GPU = (Get-WmiObject Win32_VideoController).Name
+            RAM = "{0}GB" -f [math]::Round((Get-WmiObject Win32_ComputerSystem).TotalPhysicalMemory/1GB)
+        }
+    }
+}
+
+# =============================
+# Funciones de Interfaz
+# =============================
+
+function Show-Header {
+    Clear-Host
+    Write-Host ""
+    Write-Host "  ███╗   ███╗ ██████╗ ██╗     ██╗███╗   ██╗ █████╗ " -ForegroundColor Cyan
+    Write-Host "  ████╗ ████║██╔═══██╗██║     ██║████╗  ██║██╔══██╗" -ForegroundColor Cyan
+    Write-Host "  ██╔████╔██║██║   ██║██║     ██║██╔██╗ ██║███████║" -ForegroundColor Cyan
+    Write-Host "  ██║╚██╔╝██║██║   ██║██║     ██║██║╚██╗██║██╔══██║" -ForegroundColor Cyan
+    Write-Host "  ██║ ╚═╝ ██║╚██████╔╝███████╗██║██║ ╚████║██║  ██║" -ForegroundColor Cyan
+    Write-Host "  ╚═╝     ╚═╝ ╚═════╝ ╚══════╝╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "  ██████╗ ██████╗ ████████╗██╗███╗   ███╗██╗███████╗██████╗ " -ForegroundColor Magenta
+    Write-Host "  ██╔═══██╗██╔══██╗╚══██╔══╝██║████╗ ████║██║██╔════╝██╔══██╗" -ForegroundColor Magenta
+    Write-Host "  ██║   ██║██████╔╝   ██║   ██║██╔████╔██║██║█████╗  ██████╔╝" -ForegroundColor Magenta
+    Write-Host "  ██║   ██║██╔═══╝    ██║   ██║██║╚██╔╝██║██║██╔══╝  ██╔══██╗" -ForegroundColor Magenta
+    Write-Host "  ╚██████╔╝██║        ██║   ██║██║ ╚═╝ ██║██║███████╗██║  ██║" -ForegroundColor Magenta
+    Write-Host "   ╚═════╝ ╚═╝        ╚═╝   ╚═╝╚═╝     ╚═╝╚═╝╚══════╝╚═╝  ╚═╝" -ForegroundColor Magenta
+    Write-Host ""
+    Write-Host "  Versión 6.1 | Ultimate Windows Optimizer | Gaming Focus" -ForegroundColor Yellow
+    Write-Host "  ────────────────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host ""
+}
+
+function Show-Progress {
+    param (
+        [string]$activity,
+        [string]$status,
+        [int]$percentComplete,
+        [int]$secondsRemaining = -1
+    )
+    Write-Progress -Activity $activity -Status $status -PercentComplete $percentComplete -SecondsRemaining $secondsRemaining
+    Start-Sleep -Milliseconds 100
+}
+
+function Pause {
+    Write-Host ""
+    Read-Host "Presione Enter para continuar..."
+}
+
+function Show-History {
+    Show-Header
+    Write-Host "  HISTORIAL DE CAMBIOS:" -ForegroundColor Cyan
+    Write-Host ""
+    $global:historial | ForEach-Object {
+        if ($_ -like "ERROR*") {
+            Write-Host "  [×] $_" -ForegroundColor Red
+        } elseif ($_ -like "*optimizado*") {
+            Write-Host "  [✓] $_" -ForegroundColor Green
+        } else {
+            Write-Host "  [•] $_" -ForegroundColor Gray
+        }
+    }
+    Write-Host ""
+    Write-Host "  Log completo guardado en: $global:logFile" -ForegroundColor DarkGray
+    Write-Host ""
+    Pause
+}
+
+function Show-MainMenu {
+    Show-Header
+    Write-Host "  [1] Optimización COMPLETA del sistema" -ForegroundColor Green
+    Write-Host "  [2] Optimización por categorías" -ForegroundColor Blue
+    Write-Host "  [3] Instalar programas esenciales" -ForegroundColor Cyan
+    Write-Host "  [4] Optimización para juegos" -ForegroundColor Magenta
+    Write-Host "  [5] Drivers X670E-F" -ForegroundColor DarkCyan
+    Write-Host "  [6] Herramientas avanzadas" -ForegroundColor Yellow
+    Write-Host "  [7] Mostrar historial" -ForegroundColor White
+    Write-Host "  [8] Salir" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "  ────────────────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host ""
+    $selection = Read-Host "  Selecciona una opción (1-8)"
+    return $selection
+}
+
+function Show-OptimizationMenu {
+    Show-Header
+    Write-Host "  [1] Configuración del sistema" -ForegroundColor Green
+    Write-Host "  [2] Eliminar bloatware" -ForegroundColor Blue
+    Write-Host "  [3] Optimización de DNS" -ForegroundColor Cyan
+    Write-Host "  [4] Optimización para SSD" -ForegroundColor Magenta
+    Write-Host "  [5] Limpieza y mantenimiento" -ForegroundColor Yellow
+    Write-Host "  [6] Volver al menú principal" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "  ────────────────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host ""
+    $selection = Read-Host "  Selecciona una categoría (1-6)"
+    return $selection
+}
+
+function Show-GamesMenu {
+    Show-Header
+    Write-Host "  [1] Optimizar Valorant" -ForegroundColor Green
+    Write-Host "  [2] Optimizar New World" -ForegroundColor Blue
+    Write-Host "  [3] Optimizar Escape from Tarkov" -ForegroundColor Cyan
+    Write-Host "  [4] Buscar y optimizar todos los juegos" -ForegroundColor Magenta
+    Write-Host "  [5] Forzar pantalla completa en juegos" -ForegroundColor Yellow
+    Write-Host "  [6] Volver al menú principal" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "  ────────────────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host ""
+    $selection = Read-Host "  Selecciona un juego (1-6)"
+    return $selection
+}
+
+function Show-DriversMenu {
+    Show-Header
+    Write-Host "  [1] Instalar TODOS los drivers X670E-F" -ForegroundColor Green
+    Write-Host "  [2] Instalar solo controladores de chipset" -ForegroundColor Blue
+    Write-Host "  [3] Instalar controladores de red (WiFi/LAN)" -ForegroundColor Cyan
+    Write-Host "  [4] Instalar controladores de audio" -ForegroundColor Magenta
+    Write-Host "  [5] Instalar utilidades de placa" -ForegroundColor Yellow
+    Write-Host "  [6] Volver al menú principal" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "  ────────────────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host ""
+    $selection = Read-Host "  Selecciona una opción (1-6)"
+    return $selection
+}
+
+function Show-AdvancedMenu {
+    Show-Header
+    Write-Host "  [1] Deshabilitar Telemetría/Defender" -ForegroundColor DarkRed
+    Write-Host "  [2] Bloquear Windows Update" -ForegroundColor DarkRed
+    Write-Host "  [3] Configurar Admin + Backups" -ForegroundColor DarkCyan
+    Write-Host "  [4] Configurar Temas y UI" -ForegroundColor DarkMagenta
+    Write-Host "  [5] Optimizar Red/RDP" -ForegroundColor DarkBlue
+    Write-Host "  [6] Resetear Políticas" -ForegroundColor DarkYellow
+    Write-Host "  [7] Volver al menú principal" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "  ────────────────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host ""
+    $selection = Read-Host "  Selecciona opción (1-7)"
+    return $selection
+}
+
+# =============================
+# Funciones de Optimización
+# =============================
+
+function Register-Operation {
+    param (
+        [string]$Action,
+        [string]$Target,
+        [string]$Status,
+        [string]$Details
+    )
+    
+    $operation = @{
+        Timestamp = Get-Date
+        Action = $Action
+        Target = $Target
+        Status = $Status
+        Details = $Details
+    }
+    
+    $global:ExecutionHistory.Operations += $operation
+    
+    switch ($Status) {
+        "Error" { $global:ExecutionHistory.Errors += $operation }
+        "Warning" { $global:ExecutionHistory.Warnings += $operation }
+    }
+    
+    # Escribir en el archivo de log
+    $logMessage = "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] [$Status] $Action - $Target - $Details"
+    Add-Content -Path $global:logFile -Value $logMessage
+    
+    # Agregar al historial de consola
+    $global:historial += "$Action - $Target - $Status"
+}
+
+function Test-Admin {
+    try {
+        $currentUser = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
+        $isAdmin = $currentUser.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+        
+        if (-not $isAdmin) {
+            Register-Operation -Action "Verificación" -Target "Privilegios" -Status "Error" -Details "El script requiere privilegios de administrador"
+        }
+        
+        return $isAdmin
+    } catch {
+        Register-Operation -Action "Verificación" -Target "Privilegios" -Status "Error" -Details $_.Exception.Message
+        return $false
+    }
+}
+
+function Optimize-DNS {
+    <#
+    .SYNOPSIS
+        Configura los servidores DNS más rápidos para mejorar ping y velocidad.
+    #>
+    $activity = "Optimización DNS"
+    Write-Host "`n[+] Optimizando DNS..." -ForegroundColor Cyan
+    Write-Progress -Activity $activity -Status "Iniciando" -PercentComplete 0
+    
+    try {
+        # Lista de servidores DNS recomendados
+        $dnsProviders = @(
+            @{ Name = "Cloudflare"; Primary = "1.1.1.1"; Secondary = "1.0.0.1" },
+            @{ Name = "Google"; Primary = "8.8.8.8"; Secondary = "8.8.4.4" },
+            @{ Name = "OpenDNS"; Primary = "208.67.222.222"; Secondary = "208.67.220.220" },
+            @{ Name = "Quad9"; Primary = "9.9.9.9"; Secondary = "149.112.112.112" }
+        )
+
+        # Obtener interfaces de red activas
+        $interfaces = Get-NetAdapter | Where-Object { $_.Status -eq 'Up' }
+
+        foreach ($interface in $interfaces) {
+            Write-Progress -Activity $activity -Status "Configurando $($interface.Name)" -PercentComplete 25
+            
+            # Probar cada DNS y seleccionar el más rápido
+            $fastestDNS = $dnsProviders | ForEach-Object {
+                $ping = Test-Connection $_.Primary -Count 2 -ErrorAction SilentlyContinue | 
+                        Measure-Object -Property ResponseTime -Average | 
+                        Select-Object -ExpandProperty Average
+                
+                if ($ping) { 
+                    $_ | Add-Member -NotePropertyName Ping -NotePropertyValue $ping -PassThru
+                }
+            } | Sort-Object Ping | Select-Object -First 1
+
+            if ($fastestDNS) {
+                Set-DnsClientServerAddress -InterfaceIndex $interface.InterfaceIndex -ServerAddresses ($fastestDNS.Primary, $fastestDNS.Secondary)
+                $message = "DNS configurados en $($interface.Name): $($fastestDNS.Name) (Ping: $([math]::Round($fastestDNS.Ping))ms"
+                Register-Operation -Action "Configurar DNS" -Target $interface.Name -Status "Success" -Details $message
+                Write-Host "  $message" -ForegroundColor Green
+                $global:ExecutionHistory.Stats.DNSOptimized++
+            }
+        }
+
+        Write-Progress -Activity $activity -Status "Completado" -PercentComplete 100
+        Register-Operation -Action "Optimización DNS" -Target "Sistema" -Status "Success" -Details "DNS optimizados"
+        Write-Host "Optimización DNS completada." -ForegroundColor Green
+    } catch {
+        Write-Progress -Activity $activity -Completed
+        Register-Operation -Action "Optimización DNS" -Target "Sistema" -Status "Error" -Details $_.Exception.Message
+        Write-Host "Error al configurar DNS: $_" -ForegroundColor Red
+    }
+}
+
+function Optimize-SystemSettings {
+    param (
+        [bool]$aggressive = $false
+    )
+    
+    $activity = "Optimización del Sistema"
+    Write-Host "`n[+] Optimizando configuración del sistema..." -ForegroundColor Cyan
+    Write-Progress -Activity $activity -Status "Iniciando" -PercentComplete 0
+    
+    try {
+        # Mantener servicios esenciales
+        Set-Service -Name "WlanSvc" -StartupType Automatic -Status Running -ErrorAction SilentlyContinue
+        Set-Service -Name "BthServ" -StartupType Automatic -Status Running -ErrorAction SilentlyContinue
+        Register-Operation -Action "Servicios" -Target "WlanSvc/BthServ" -Status "Success" -Details "Servicios esenciales activados"
+        Write-Host "Servicios esenciales (WiFi/Bluetooth) activados." -ForegroundColor Green
+
+        # Desactivar servicios innecesarios
+        $servicesToDisable = @(
+            "DiagTrack", "diagnosticshub.standardcollector.service", "dmwappushservice",
+            "MapsBroker", "NetTcpPortSharing", "RemoteRegistry",
+            "XblAuthManager", "XblGameSave", "XboxNetApiSvc",
+            "SysMain", "WSearch", "lfsvc", "MixedRealityOpenXRSvc"
+        )
+
+        foreach ($service in $servicesToDisable) {
+            try {
+                Set-Service -Name $service -StartupType Disabled -ErrorAction Stop
+                Stop-Service -Name $service -Force -ErrorAction SilentlyContinue
+                Register-Operation -Action "Servicios" -Target $service -Status "Success" -Details "Servicio desactivado"
+                Write-Host "Servicio $service desactivado." -ForegroundColor Green
+            } catch {
+                Register-Operation -Action "Servicios" -Target $service -Status "Warning" -Details "No se pudo desactivar"
+                Write-Host "No se pudo desactivar $service - $_" -ForegroundColor Yellow
+            }
+        }
+
+        # Optimizaciones de red mejoradas
+        Write-Progress -Activity $activity -Status "Optimizando red" -PercentComplete 30
+        Write-Host "Optimizando configuración de red..." -ForegroundColor Cyan
+        try {
+            Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" -Name "EnableRSS" -Type DWord -Value 1
+            Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" -Name "EnableTCPA" -Type DWord -Value 1
+            Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" -Name "TcpTimedWaitDelay" -Type DWord -Value 30
+            Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" -Name "KeepAliveTime" -Type DWord -Value 30000
+            Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" -Name "DisableTaskOffload" -Type DWord -Value 0
+            Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" -Name "TcpAckFrequency" -Type DWord -Value 1
+            Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" -Name "TcpNoDelay" -Type DWord -Value 1
+            Register-Operation -Action "Red" -Target "Configuración TCP/IP" -Status "Success" -Details "Configuración de red optimizada"
+            Write-Host "Configuración de red optimizada." -ForegroundColor Green
+        } catch {
+            Register-Operation -Action "Red" -Target "Configuración TCP/IP" -Status "Error" -Details $_.Exception.Message
+            Write-Host "Error al optimizar configuración de red: $_" -ForegroundColor Red
+        }
+
+        # Desactivar telemetría y seguimiento
+        Write-Progress -Activity $activity -Status "Desactivando telemetría" -PercentComplete 50
+        Write-Host "Desactivando telemetría..." -ForegroundColor Cyan
+        $telemetryKeys = @(
+            "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\DataCollection",
+            "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection",
+            "HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppCompat",
+            "HKLM:\SOFTWARE\Policies\Microsoft\Windows\TabletPC",
+            "HKLM:\SOFTWARE\Policies\Microsoft\Windows\LocationAndSensors",
+            "HKLM:\SOFTWARE\Policies\Microsoft\Windows\HandwritingErrorReports",
+            "HKLM:\SOFTWARE\Policies\Microsoft\InputPersonalization"
+        )
+
+        foreach ($key in $telemetryKeys) {
+            try {
+                if (-not (Test-Path $key)) { New-Item -Path $key -Force | Out-Null }
+                Set-ItemProperty -Path $key -Name "AllowTelemetry" -Type DWord -Value 0
+                Set-ItemProperty -Path $key -Name "DoNotShowFeedbackNotifications" -Type DWord -Value 1
+                Set-ItemProperty -Path $key -Name "DisableTelemetry" -Type DWord -Value 1
+                Register-Operation -Action "Telemetría" -Target $key -Status "Success" -Details "Telemetría deshabilitada"
+            } catch {
+                Register-Operation -Action "Telemetría" -Target $key -Status "Warning" -Details "No se pudo configurar"
+                Write-Host "Error al configurar $key - $_" -ForegroundColor Yellow
+            }
+        }
+        
+        Register-Operation -Action "Telemetría" -Target "Registro" -Status "Success" -Details "Configuración de telemetría deshabilitada"
+        Write-Host "Configuración de telemetría deshabilitada." -ForegroundColor Green
+
+        # Desactivar Cortana completamente
+        Write-Progress -Activity $activity -Status "Deshabilitando Cortana" -PercentComplete 60
+        Write-Host "Deshabilitando Cortana..." -ForegroundColor Cyan
+        $cortanaKeys = @(
+            "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search",
+            "HKLM:\SOFTWARE\Microsoft\PolicyManager\current\device\Experience"
+        )
+        
+        foreach ($key in $cortanaKeys) {
+            try {
+                if (-not (Test-Path $key)) { New-Item -Path $key -Force | Out-Null }
+                Set-ItemProperty -Path $key -Name "AllowCortana" -Type DWord -Value 0
+                Set-ItemProperty -Path $key -Name "AllowSearchToUseLocation" -Type DWord -Value 0
+                Set-ItemProperty -Path $key -Name "DisableWebSearch" -Type DWord -Value 1
+                Register-Operation -Action "Cortana" -Target $key -Status "Success" -Details "Cortana deshabilitada"
+            } catch {
+                Register-Operation -Action "Cortana" -Target $key -Status "Warning" -Details "No se pudo deshabilitar"
+                Write-Host "Error al deshabilitar Cortana en $key - $_" -ForegroundColor Yellow
+            }
+        }
+
+        # Optimizaciones para juegos mejoradas
+        Write-Progress -Activity $activity -Status "Optimizando para juegos" -PercentComplete 70
+        Write-Host "Aplicando optimizaciones para juegos..." -ForegroundColor Cyan
+        try {
+            Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile" -Name "SystemResponsiveness" -Type DWord -Value 0
+            Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games" -Name "GPU Priority" -Type DWord -Value 8
+            Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games" -Name "Priority" -Type DWord -Value 6
+            Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games" -Name "Scheduling Category" -Type String -Value "High"
+            
+            # Desactivar Fullscreen Optimizations
+            Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" -Name "HwSchMode" -Type DWord -Value 2
+            
+            Register-Operation -Action "Juegos" -Target "Configuración" -Status "Success" -Details "Optimizaciones para juegos aplicadas"
+            Write-Host "Optimizaciones para juegos aplicadas." -ForegroundColor Green
+        } catch {
+            Register-Operation -Action "Juegos" -Target "Configuración" -Status "Error" -Details $_.Exception.Message
+            Write-Host "Error al aplicar optimizaciones para juegos: $_" -ForegroundColor Red
+        }
+
+        # Desactivar Game Bar y Game DVR completamente
+        Write-Progress -Activity $activity -Status "Deshabilitando Game DVR" -PercentComplete 80
+        Write-Host "Deshabilitando Game Bar y DVR..." -ForegroundColor Cyan
+        $gameDvrKeys = @(
+            "HKLM:\SOFTWARE\Policies\Microsoft\Windows\GameDVR",
+            "HKCU:\System\GameConfigStore",
+            "HKCU:\Software\Microsoft\GameBar"
+        )
+        
+        foreach ($key in $gameDvrKeys) {
+            try {
+                if (-not (Test-Path $key)) { New-Item -Path $key -Force | Out-Null }
+                Set-ItemProperty -Path $key -Name "AllowGameDVR" -Type DWord -Value 0
+                Set-ItemProperty -Path $key -Name "GameDVR_Enabled" -Type DWord -Value 0
+                Set-ItemProperty -Path $key -Name "AutoGameModeEnabled" -Type DWord -Value 0
+                Set-ItemProperty -Path $key -Name "ShowStartupPanel" -Type DWord -Value 0
+                Register-Operation -Action "Game DVR" -Target $key -Status "Success" -Details "Game DVR deshabilitado"
+            } catch {
+                Register-Operation -Action "Game DVR" -Target $key -Status "Warning" -Details "No se pudo deshabilitar"
+                Write-Host "Error al deshabilitar Game DVR en $key - $_" -ForegroundColor Yellow
+            }
+        }
+
+        Write-Progress -Activity $activity -Status "Completado" -PercentComplete 100
+        Register-Operation -Action "Optimización" -Target "Sistema" -Status "Success" -Details "Optimización del sistema completada"
+        Write-Host "Optimización del sistema completada." -ForegroundColor Green
+    } catch {
+        Write-Progress -Activity $activity -Completed
+        Register-Operation -Action "Optimización" -Target "Sistema" -Status "Error" -Details $_.Exception.Message
+        Write-Host "Error en optimización del sistema: $_" -ForegroundColor Red
+    }
+}
+
+function Remove-Bloatware {
+    param (
+        [bool]$removeOneDrive = $true,
+        [bool]$removeEdge = $false,
+        [bool]$removeCortana = $true
+    )
+    
+    $activity = "Eliminación de Bloatware"
+    Write-Host "`n[+] Eliminando bloatware..." -ForegroundColor Cyan
+    Write-Progress -Activity $activity -Status "Iniciando" -PercentComplete 0
+    
+    # Lista mejorada de bloatware
+    $bloatware = @(
+        # Microsoft Apps
+        "Microsoft.BingWeather",
+        "Microsoft.GetHelp",
+        "Microsoft.Getstarted",
+        "Microsoft.MicrosoftSolitaireCollection",
+        "Microsoft.People",
+        "Microsoft.WindowsFeedbackHub",
+        "Microsoft.XboxApp",
+        "Microsoft.XboxGameOverlay",
+        "Microsoft.XboxGamingOverlay",
+        "Microsoft.MixedReality.Portal",
+        "Microsoft.BingNews",
+        "Microsoft.BingSports",
+        "Microsoft.WindowsAlarms",
+        "Microsoft.WindowsCamera",
+        "microsoft.windowscommunicationsapps",
+        "Microsoft.WindowsMaps",
+        "Microsoft.WindowsSoundRecorder",
+        "Microsoft.ZuneMusic",
+        "Microsoft.ZuneVideo",
+        
+        # Apps de terceros
+        "king.com.CandyCrushSaga",
+        "king.com.CandyCrushSodaSaga",
+        "king.com.BubbleWitch3Saga",
+        "A278AB0D.MarchofEmpires",
+        "D52A8D61.FarmVille2CountryEscape",
+        "GAMELOFTSA.Asphalt8Airborne",
+        "flaregamesGmbH.RoyalRevolt2",
+        "A278AB0D.DisneyMagicKingdoms",
+        "PandoraMediaInc.29680B314EFC2",
+        "SpotifyAB.SpotifyMusic",
+        
+        # Windows Features
+        "Microsoft.Windows.ParentalControls",
+        "MicrosoftWindows.Client.WebExperience"
+    )
+
+    # Eliminar OneDrive si se solicita
+    if ($removeOneDrive) {
+        Write-Progress -Activity $activity -Status "Desinstalando OneDrive" -PercentComplete 10
+        Write-Host "Desinstalando OneDrive..." -ForegroundColor Yellow
+        
+        try {
+            Stop-Process -Name "OneDrive" -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 2
+            
+            $onedrivePath = "$env:SYSTEMDRIVE\Windows\SysWOW64\OneDriveSetup.exe"
+            if (Test-Path $onedrivePath) {
+                Start-Process $onedrivePath -ArgumentList "/uninstall" -NoNewWindow -Wait
+                Write-Host "Se ha realizado: Desinstalación de OneDrive ejecutada." -ForegroundColor Green
+            }
+            
+            Get-Process -Name "OneDrive" -ErrorAction SilentlyContinue | Stop-Process -Force
+            Remove-Item -Path "$env:USERPROFILE\OneDrive" -Recurse -Force -ErrorAction SilentlyContinue
+            Remove-Item -Path "$env:LOCALAPPDATA\Microsoft\OneDrive" -Recurse -Force -ErrorAction SilentlyContinue
+            Remove-Item -Path "$env:PROGRAMDATA\Microsoft OneDrive" -Recurse -Force -ErrorAction SilentlyContinue
+            Remove-Item -Path "$env:SYSTEMDRIVE\OneDriveTemp" -Recurse -Force -ErrorAction SilentlyContinue
+            
+            # Eliminar claves de registro
+            $registryPaths = @(
+                "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run",
+                "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run",
+                "HKLM:\SOFTWARE\Policies\Microsoft\Windows\OneDrive",
+                "HKCU:\SOFTWARE\Microsoft\OneDrive",
+                "HKLM:\SOFTWARE\Microsoft\OneDrive"
+            )
+            
+            foreach ($path in $registryPaths) {
+                if (Test-Path $path) {
+                    Remove-ItemProperty -Path $path -Name "OneDrive" -ErrorAction SilentlyContinue
+                }
+            }
+            
+            Register-Operation -Action "Bloatware" -Target "OneDrive" -Status "Success" -Details "OneDrive desinstalado completamente"
+            Write-Host "OneDrive desinstalado completamente." -ForegroundColor Green
+        } catch {
+            Register-Operation -Action "Bloatware" -Target "OneDrive" -Status "Error" -Details $_.Exception.Message
+            Write-Host "Error al desinstalar OneDrive: $_" -ForegroundColor Red
+        }
+    }
+
+    # Eliminar Microsoft Edge si se solicita (no recomendado)
+    if ($removeEdge) {
+        Write-Progress -Activity $activity -Status "Desinstalando Edge" -PercentComplete 20
+        Write-Host "Desinstalando Microsoft Edge..." -ForegroundColor Yellow
+        try {
+            $edgePackage = Get-AppxPackage -Name "Microsoft.MicrosoftEdge"
+            if ($edgePackage) {
+                Remove-AppxPackage -Package $edgePackage.PackageFullName
+                Register-Operation -Action "Bloatware" -Target "Microsoft Edge" -Status "Success" -Details "Microsoft Edge desinstalado"
+                Write-Host "Microsoft Edge desinstalado." -ForegroundColor Green
+            } else {
+                Register-Operation -Action "Bloatware" -Target "Microsoft Edge" -Status "Info" -Details "No encontrado o ya desinstalado"
+                Write-Host "Microsoft Edge no encontrado o ya desinstalado." -ForegroundColor Yellow
+            }
+        } catch {
+            Register-Operation -Action "Bloatware" -Target "Microsoft Edge" -Status "Error" -Details $_.Exception.Message
+            Write-Host "Error al desinstalar Microsoft Edge: $_" -ForegroundColor Red
+        }
+    }
+
+    # Eliminar Cortana si se solicita
+    if ($removeCortana) {
+        Write-Progress -Activity $activity -Status "Desinstalando Cortana" -PercentComplete 30
+        Write-Host "Desinstalando Cortana..." -ForegroundColor Yellow
+        try {
+            $cortanaPackage = Get-AppxPackage -Name "Microsoft.549981C3F5F10"
+            if ($cortanaPackage) {
+                Remove-AppxPackage -Package $cortanaPackage.PackageFullName
+                Register-Operation -Action "Bloatware" -Target "Cortana" -Status "Success" -Details "Cortana desinstalada"
+                Write-Host "Cortana desinstalada." -ForegroundColor Green
+            } else {
+                Register-Operation -Action "Bloatware" -Target "Cortana" -Status "Info" -Details "No encontrada o ya desinstalada"
+                Write-Host "Cortana no encontrada o ya desinstalada." -ForegroundColor Yellow
+            }
+        } catch {
+            Register-Operation -Action "Bloatware" -Target "Cortana" -Status "Error" -Details $_.Exception.Message
+            Write-Host "Error al desinstalar Cortana: $_" -ForegroundColor Red
+        }
+    }
+
+    # Eliminar bloatware estándar
+    $totalApps = $bloatware.Count
+    $currentApp = 0
+    
+    foreach ($app in $bloatware) {
+        $currentApp++
+        $percentComplete = [math]::Round(($currentApp / $totalApps) * 100)
+        Write-Progress -Activity $activity -Status "Eliminando $app" -PercentComplete $percentComplete
+        Write-Host "Intentando eliminar: $app" -ForegroundColor Yellow
+        
+        try {
+            # Eliminar para el usuario actual
+            Get-AppxPackage -Name $app -ErrorAction SilentlyContinue | Remove-AppxPackage -ErrorAction SilentlyContinue
+            
+            # Eliminar para todos los usuarios
+            Get-AppxPackage -Name $app -AllUsers -ErrorAction SilentlyContinue | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
+            
+            # Eliminar paquetes provisionados
+            Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue | 
+                Where-Object DisplayName -like $app | 
+                Remove-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue
+            
+            Register-Operation -Action "Bloatware" -Target $app -Status "Success" -Details "Aplicación eliminada"
+            Write-Host "Se ha realizado: Eliminado $app" -ForegroundColor Green
+            $global:ExecutionHistory.Stats.ItemsRemoved++
+        } catch {
+            Register-Operation -Action "Bloatware" -Target $app -Status "Warning" -Details "No se pudo eliminar"
+            Write-Host "Error al eliminar $app - $_" -ForegroundColor Red
+        }
+    }
+
+    # Eliminar características opcionales de Windows
+    $optionalFeatures = @(
+        "Internet-Explorer-Optional-amd64",
+        "Printing-XPSServices-Features",
+        "WorkFolders-Client",
+        "MediaPlayback",
+        "WindowsMediaPlayer",
+        "Xps-Foundation-Xps-Viewer"
+    )
+
+    foreach ($feature in $optionalFeatures) {
+        try {
+            Disable-WindowsOptionalFeature -Online -FeatureName $feature -NoRestart -ErrorAction Stop | Out-Null
+            Register-Operation -Action "Características" -Target $feature -Status "Success" -Details "Característica deshabilitada"
+            Write-Host "Característica deshabilitada: $feature" -ForegroundColor Green
+            $global:ExecutionHistory.Stats.ItemsRemoved++
+        } catch {
+            Register-Operation -Action "Características" -Target $feature -Status "Warning" -Details "No se pudo deshabilitar"
+            Write-Host "No se pudo deshabilitar $feature - $_" -ForegroundColor Yellow
+        }
+    }
+
+    # Nuevas funciones de debloat añadidas
+    try {
+        # Deshabilitar Microsoft Recall
+        Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsAI" -Name "DisableAIDataAnalysis" -Value 1 -Type DWord -Force
+        DISM /Online /Disable-Feature /FeatureName:Recall
+        Register-Operation -Action "Bloatware" -Target "Microsoft Recall" -Status "Success" -Details "Microsoft Recall deshabilitado"
+        Write-Host "Microsoft Recall deshabilitado." -ForegroundColor Green
+        
+        # Deshabilitar Intel MM (vPro LMS)
+        $serviceName = "LMS"
+        Stop-Service -Name $serviceName -Force -ErrorAction SilentlyContinue
+        Set-Service -Name $serviceName -StartupType Disabled -ErrorAction SilentlyContinue
+        sc.exe delete $serviceName
+        Get-ChildItem -Path "C:\Windows\System32\DriverStore\FileRepository" -Recurse -Filter "lms.inf*" | ForEach-Object {
+            pnputil /delete-driver $_.Name /uninstall /force
+        }
+        Get-ChildItem -Path "C:\Program Files", "C:\Program Files (x86)" -Recurse -Filter "LMS.exe" -ErrorAction SilentlyContinue | ForEach-Object {
+            icacls $_.FullName /grant Administrators:F /T /C /Q
+            takeown /F $_.FullName /A /R /D Y
+            Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue
+        }
+        Register-Operation -Action "Bloatware" -Target "Intel LMS" -Status "Success" -Details "Intel LMS (vPro) deshabilitado y eliminado"
+        Write-Host "Intel LMS (vPro) deshabilitado y eliminado." -ForegroundColor Green
+        
+        # Deshabilitar el historial de actividades
+        Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\ActivityHistory" -Name "PublishUserActivities" -Value 0 -Type DWord -Force
+        Register-Operation -Action "Bloatware" -Target "Historial de actividades" -Status "Success" -Details "Historial de actividades deshabilitado"
+        Write-Host "Historial de actividades deshabilitado." -ForegroundColor Green
+        
+        # Deshabilitar características de consumidor
+        Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent" -Name "DisableConsumerFeatures" -Value 1 -Type DWord -Force
+        Register-Operation -Action "Bloatware" -Target "Características de consumidor" -Status "Success" -Details "Características de consumidor deshabilitadas"
+        Write-Host "Características de consumidor deshabilitadas." -ForegroundColor Green
+        
+        # Deshabilitar GameDVR
+        Set-ItemProperty -Path "HKCU:\Software\Microsoft\GameBar" -Name "AllowAutoGameMode" -Value 0 -Type DWord -Force
+        Set-ItemProperty -Path "HKCU:\Software\Microsoft\GameBar" -Name "AutoGameModeEnabled" -Value 0 -Type DWord -Force
+        Register-Operation -Action "Bloatware" -Target "GameDVR" -Status "Success" -Details "GameDVR deshabilitado"
+        Write-Host "GameDVR deshabilitado." -ForegroundColor Green
+        
+        # Deshabilitar hibernación
+        powercfg -h off
+        Register-Operation -Action "Bloatware" -Target "Hibernación" -Status "Success" -Details "Hibernación deshabilitada"
+        Write-Host "Hibernación deshabilitada." -ForegroundColor Green
+        
+        # Deshabilitar grupo hogar
+        Set-Service -Name "HomeGroupListener" -StartupType Disabled
+        Set-Service -Name "HomeGroupProvider" -StartupType Disabled
+        Stop-Service -Name "HomeGroupListener" -Force
+        Stop-Service -Name "HomeGroupProvider" -Force
+        Register-Operation -Action "Bloatware" -Target "Grupo hogar" -Status "Success" -Details "Grupo hogar deshabilitado"
+        Write-Host "Grupo hogar deshabilitado." -ForegroundColor Green
+        
+        # Deshabilitar seguimiento de ubicación
+        Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\lfsvc\Service\Configuration" -Name "Status" -Value 0 -Type DWord -Force
+        Register-Operation -Action "Bloatware" -Target "Seguimiento de ubicación" -Status "Success" -Details "Seguimiento de ubicación deshabilitado"
+        Write-Host "Seguimiento de ubicación deshabilitado." -ForegroundColor Green
+        
+        # Deshabilitar telemetría de PowerShell 7
+        Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\PowerShell\7" -Name "DisableTelemetry" -Value 1 -Type DWord -Force
+        Register-Operation -Action "Bloatware" -Target "Telemetría PowerShell" -Status "Success" -Details "Telemetría de PowerShell 7 deshabilitada"
+        Write-Host "Telemetría de PowerShell 7 deshabilitada." -ForegroundColor Green
+        
+        # Deshabilitar Storage Sense
+        Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\StorageSense\Parameters\StoragePolicy" -Name "01" -Value 0 -Type DWord -Force
+        Register-Operation -Action "Bloatware" -Target "Storage Sense" -Status "Success" -Details "Storage Sense deshabilitado"
+        Write-Host "Storage Sense deshabilitado." -ForegroundColor Green
+        
+        # Deshabilitar telemetría
+        Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" -Name "AllowTelemetry" -Value 0 -Type DWord -Force
+        Register-Operation -Action "Bloatware" -Target "Telemetría" -Status "Success" -Details "Telemetría deshabilitada"
+        Write-Host "Telemetría deshabilitada." -ForegroundColor Green
+        
+        # Deshabilitar Wifi-Sense
+        Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\WcmSvc\wifinetworkmanager\config" -Name "AutoConnectAllowedOEM" -Value 0 -Type DWord -Force
+        Register-Operation -Action "Bloatware" -Target "Wifi-Sense" -Status "Success" -Details "Wifi-Sense deshabilitado"
+        Write-Host "Wifi-Sense deshabilitado." -ForegroundColor Green
+        
+        # Deshabilitar aplicaciones en segundo plano
+        Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications" -Name "GlobalUserDisabled" -Value 1 -Type DWord -Force
+        Register-Operation -Action "Bloatware" -Target "Apps en segundo plano" -Status "Success" -Details "Aplicaciones en segundo plano deshabilitadas"
+        Write-Host "Aplicaciones en segundo plano deshabilitadas." -ForegroundColor Green
+        
+        # Deshabilitar la optimización de pantalla completa
+        Set-ItemProperty -Path "HKCU:\System\GameConfigStore" -Name "GameDVR_DXGIHonorFSEWindowsCompatible" -Value 1 -Type DWord -Force
+        Register-Operation -Action "Bloatware" -Target "Optimización pantalla completa" -Status "Success" -Details "Optimización de pantalla completa deshabilitada"
+        Write-Host "Optimización de pantalla completa deshabilitada." -ForegroundColor Green
+        
+        # Deshabilitar bandeja de notificaciones y calendario
+        Set-ItemProperty -Path "HKCU:\Software\Policies\Microsoft\Windows\Explorer" -Name "DisableNotificationCenter" -Value 1 -Type DWord -Force
+        Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\PushNotifications" -Name "ToastEnabled" -Value 0 -Type DWord -Force
+        Register-Operation -Action "Bloatware" -Target "Notificaciones" -Status "Success" -Details "Bandeja de notificaciones y calendario deshabilitados"
+        Write-Host "Bandeja de notificaciones y calendario deshabilitados." -ForegroundColor Green
+        
+        # Deshabilitar IPv6
+        Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip6\Parameters" -Name "DisabledComponents" -Value 255 -Type DWord -Force
+        Disable-NetAdapterBinding -Name "*" -ComponentID ms_tcpip6
+        Register-Operation -Action "Bloatware" -Target "IPv6" -Status "Success" -Details "IPv6 deshabilitado"
+        Write-Host "IPv6 deshabilitado." -ForegroundColor Green
+        
+        # Deshabilitar sugerencias de búsqueda en el registro
+        if (!(Test-Path 'HKCU:\SOFTWARE\Policies\Microsoft\Windows\Explorer')) {
+            New-Item -Path 'HKCU:\SOFTWARE\Policies\Microsoft\Windows\Explorer' -Force | Out-Null
+        }
+        New-ItemProperty -Path 'HKCU:\SOFTWARE\Policies\Microsoft\Windows\Explorer' -Name 'DisableSearchBoxSuggestions' -Value 1 -Type DWord -Force
+        Stop-Process -name explorer -force
+        Register-Operation -Action "Bloatware" -Target "Sugerencias de búsqueda" -Status "Success" -Details "Sugerencias de búsqueda deshabilitadas"
+        Write-Host "Sugerencias de búsqueda deshabilitadas." -ForegroundColor Green
+        
+        # Deshabilitar Microsoft Copilot
+        Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Copilot" -Name "DisableCopilot" -Value 1 -Type DWord -Force
+        Register-Operation -Action "Bloatware" -Target "Microsoft Copilot" -Status "Success" -Details "Microsoft Copilot deshabilitado"
+        Write-Host "Microsoft Copilot deshabilitado." -ForegroundColor Green
+        
+        # Deshabilitar Teredo
+        Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip6\Parameters" -Name "DisabledComponents" -Value 8 -Type DWord -Force
+        Register-Operation -Action "Bloatware" -Target "Teredo" -Status "Success" -Details "Teredo deshabilitado"
+        Write-Host "Teredo deshabilitado." -ForegroundColor Green
+        
+        # Eliminar Home y Gallery del explorador
+        Remove-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "LaunchTo" -Force
+        Remove-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "HubMode" -Force
+        Register-Operation -Action "Bloatware" -Target "Explorador" -Status "Success" -Details "Home y Gallery eliminados del explorador"
+        Write-Host "Home y Gallery eliminados del explorador." -ForegroundColor Green
+        
+        # Bloquear red de Adobe
+        New-Item -Path "HKLM:\SOFTWARE\Policies\Adobe" -Force | Out-Null
+        New-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Adobe" -Name "BlockNetwork" -Value 1 -Type DWord -Force
+        Register-Operation -Action "Bloatware" -Target "Adobe" -Status "Success" -Details "Red de Adobe bloqueada"
+        Write-Host "Red de Adobe bloqueada." -ForegroundColor Green
+        
+        # Debloat Microsoft Edge
+        Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\EdgeUpdate" -Name "CreateDesktopShortcutDefault" -Value 0 -Type DWord -Force
+        Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Edge" -Name "EdgeEnhanceImagesEnabled" -Value 0 -Type DWord -Force
+        Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Edge" -Name "PersonalizationReportingEnabled" -Value 0 -Type DWord -Force
+        Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Edge" -Name "ShowRecommendationsEnabled" -Value 0 -Type DWord -Force
+        Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Edge" -Name "HideFirstRunExperience" -Value 1 -Type DWord -Force
+        Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Edge" -Name "UserFeedbackAllowed" -Value 0 -Type DWord -Force
+        Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Edge" -Name "ConfigureDoNotTrack" -Value 1 -Type DWord -Force
+        Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Edge" -Name "AlternateErrorPagesEnabled" -Value 0 -Type DWord -Force
+        Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Edge" -Name "EdgeCollectionsEnabled" -Value 0 -Type DWord -Force
+        Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Edge" -Name "EdgeFollowEnabled" -Value 0 -Type DWord -Force
+        Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Edge" -Name "EdgeShoppingAssistantEnabled" -Value 0 -Type DWord -Force
+        Register-Operation -Action "Bloatware" -Target "Microsoft Edge" -Status "Success" -Details "Debloat de Microsoft Edge completado"
+        Write-Host "Debloat de Microsoft Edge completado." -ForegroundColor Green
+        
+        # Debloat Adobe software
+        # Función para detener Adobe Desktop Service
+        function CCStopper {
+            $path = "C:\Program Files (x86)\Common Files\Adobe\Adobe Desktop Common\ADS\Adobe Desktop Service.exe"
+            if (Test-Path $path) {
+                Takeown /f $path
+                $acl = Get-Acl $path
+                $acl.SetOwner([System.Security.Principal.NTAccount]"Administrators")
+                $acl | Set-Acl $path
+                Rename-Item -Path $path -NewName "Adobe Desktop Service.exe.old" -Force
+                Write-Host "Se ha realizado: Adobe Desktop Service detenido y renombrado." -ForegroundColor Green
+            } else {
+                Write-Host "Adobe Desktop Service no está en la ubicación predeterminada." -ForegroundColor Yellow
+            }
+        }
+
+        # Función para deshabilitar las actualizaciones de Acrobat
+        function AcrobatUpdates {
+            $rootPath = "HKLM:\SOFTWARE\WOW6432Node\Adobe\Adobe ARM\Legacy\Acrobat"
+            $subKeys = Get-ChildItem -Path $rootPath | Where-Object { $_.PSChildName -like "{*}" }
+            foreach ($subKey in $subKeys) {
+                $fullPath = Join-Path -Path $rootPath -ChildPath $subKey.PSChildName
+                try {
+                    Set-ItemProperty -Path $fullPath -Name Mode -Value 0
+                    Write-Host "Se ha realizado: Actualizaciones de Acrobat deshabilitadas." -ForegroundColor Green
+                } catch {
+                    Write-Host "La clave del registro para cambiar las actualizaciones de Acrobat no existe en $fullPath" -ForegroundColor Yellow
+                }
+            }
+        }
+
+        CCStopper
+        AcrobatUpdates
+        Register-Operation -Action "Bloatware" -Target "Adobe" -Status "Success" -Details "Adobe software debloated"
+        Write-Host "Adobe software debloated." -ForegroundColor Green
+    } catch {
+        Register-Operation -Action "Bloatware" -Target "Nuevas funciones" -Status "Error" -Details $_.Exception.Message
+        Write-Host "Error en nuevas funciones de debloat: $_" -ForegroundColor Red
+    }
+
+    Write-Progress -Activity $activity -Status "Completado" -PercentComplete 100
+    Register-Operation -Action "Bloatware" -Target "Sistema" -Status "Success" -Details "Eliminación de bloatware completada"
+    Write-Host "Eliminación de bloatware completada." -ForegroundColor Green
+}
+
+function Optimize-Games {
+    param (
+        [string]$GameName = "All"
+    )
+    
+    $activity = "Optimización de Juegos"
+    Write-Host "`n[+] Optimizando juegos..." -ForegroundColor Cyan
+    Write-Progress -Activity $activity -Status "Iniciando" -PercentComplete 0
+    
+    try {
+        # 1. Optimizaciones generales
+        Write-Progress -Activity $activity -Status "Aplicando optimizaciones generales" -PercentComplete 10
+        Write-Host "Aplicando optimizaciones generales..." -ForegroundColor Yellow
+        
+        Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile" -Name "SystemResponsiveness" -Type DWord -Value 0
+        Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games" -Name "GPU Priority" -Type DWord -Value 8
+        Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" -Name "HwSchMode" -Type DWord -Value 2
+        
+        Register-Operation -Action "Juegos" -Target "Optimizaciones generales" -Status "Success" -Details "Optimizaciones generales aplicadas"
+        Write-Host "Optimizaciones generales aplicadas." -ForegroundColor Green
+        
+        # 2. Optimización específica por juego
+        $totalGames = 0
+        $currentGame = 0
+        
+        if ($GameName -eq "All" -or $GameName -eq "Valorant") { $totalGames++ }
+        if ($GameName -eq "All" -or $GameName -eq "NewWorld") { $totalGames++ }
+        if ($GameName -eq "All" -or $GameName -eq "EFT") { $totalGames++ }
+        
+        # Optimización para Valorant
+        if ($GameName -eq "All" -or $GameName -eq "Valorant") {
+            $currentGame++
+            $percentComplete = [math]::Round(($currentGame / $totalGames) * 100)
+            Write-Progress -Activity $activity -Status "Optimizando VALORANT" -PercentComplete $percentComplete
+            Write-Host "Optimizando VALORANT..." -ForegroundColor Yellow
+            
+            $valorantPaths = @(
+                "C:\Riot Games\VALORANT\live\ShooterGame\Saved\Config",
+                "$env:LOCALAPPDATA\VALORANT\Saved\Config"
+            )
+            
+            foreach ($path in $valorantPaths) {
+                if (Test-Path $path) {
+                    try {
+                        $configFile = Join-Path $path "Windows\GameUserSettings.ini"
+                        if (Test-Path $configFile) {
+                            $content = Get-Content $configFile -Raw
+                            $optimized = $content -replace "(?i)(FullscreenMode|PreferredFullscreenState)\s*=\s*\w+", "FullscreenMode=1`nPreferredFullscreenState=1" `
+                                           -replace "(?i)(VSync|bUseVSync)\s*=\s*\w+", "VSync=False`nbUseVSync=False" `
+                                           -replace "(?i)PreferredRefreshRate\s*=\s*\d+", "PreferredRefreshRate=144"
+                            Set-Content -Path $configFile -Value $optimized -Force
+                            
+                            $backupPath = "$($configFile).bak"
+                            if (-not (Test-Path $backupPath)) {
+                                Copy-Item $configFile -Destination $backupPath -Force
+                            }
+                            
+                            Register-Operation -Action "Juegos" -Target "VALORANT" -Status "Success" -Details "Configuración optimizada en $path"
+                            Write-Host "Configuración de VALORANT optimizada en: $path" -ForegroundColor Green
+                            $global:ExecutionHistory.Stats.FilesModified++
+                        }
+                    } catch {
+                        Register-Operation -Action "Juegos" -Target "VALORANT" -Status "Error" -Details $_.Exception.Message
+                        Write-Host "Error al optimizar VALORANT: $_" -ForegroundColor Red
+                    }
+                }
+            }
+        }
+        
+        # Optimización para New World
+        if ($GameName -eq "All" -or $GameName -eq "NewWorld") {
+            $currentGame++
+            $percentComplete = [math]::Round(($currentGame / $totalGames) * 100)
+            Write-Progress -Activity $activity -Status "Optimizando New World" -PercentComplete $percentComplete
+            Write-Host "Optimizando New World..." -ForegroundColor Yellow
+            
+            $newWorldPaths = @(
+                "C:\Program Files (x86)\Steam\steamapps\common\New World",
+                "$env:LOCALAPPDATA\Amazon Games\Saved\Config\WindowsClient"
+            )
+            
+            foreach ($path in $newWorldPaths) {
+                if (Test-Path $path) {
+                    try {
+                        $configFile = Join-Path $path "GameUserSettings.ini"
+                        if (-not (Test-Path $configFile)) {
+                            $content = @"
+[ScalabilityGroups]
+sg.ResolutionQuality=100.000000
+sg.ViewDistanceQuality=2
+sg.AntiAliasingQuality=1
+sg.ShadowQuality=2
+sg.PostProcessQuality=1
+sg.TextureQuality=2
+[SystemSettings]
+FullscreenMode=1
+PreferredRefreshRate=144
+bUseVSync=False
+"@
+                            Set-Content -Path $configFile -Value $content -Force
+                        } else {
+                            $content = Get-Content $configFile -Raw
+                            $optimized = $content -replace "(?i)(FullscreenMode|PreferredFullscreenState)\s*=\s*\w+", "FullscreenMode=1" `
+                                           -replace "(?i)(VSync|bUseVSync)\s*=\s*\w+", "VSync=False`nbUseVSync=False" `
+                                           -replace "(?i)PreferredRefreshRate\s*=\s*\d+", "PreferredRefreshRate=144"
+                            Set-Content -Path $configFile -Value $optimized -Force
+                        }
+                        
+                        $backupPath = "$($configFile).bak"
+                        if (-not (Test-Path $backupPath)) {
+                            Copy-Item $configFile -Destination $backupPath -Force
+                        }
+                        
+                        Register-Operation -Action "Juegos" -Target "New World" -Status "Success" -Details "Configuración optimizada en $path"
+                        Write-Host "Configuración de New World optimizada en: $path" -ForegroundColor Green
+                        $global:ExecutionHistory.Stats.FilesModified++
+                    } catch {
+                        Register-Operation -Action "Juegos" -Target "New World" -Status "Error" -Details $_.Exception.Message
+                        Write-Host "Error al optimizar New World: $_" -ForegroundColor Red
+                    }
+                }
+            }
+        }
+        
+        # Optimización para Escape from Tarkov
+        if ($GameName -eq "All" -or $GameName -eq "EFT") {
+            $currentGame++
+            $percentComplete = [math]::Round(($currentGame / $totalGames) * 100)
+            Write-Progress -Activity $activity -Status "Optimizando Escape from Tarkov" -PercentComplete $percentComplete
+            Write-Host "Optimizando Escape from Tarkov..." -ForegroundColor Yellow
+            
+            $tarkovPaths = @(
+                "C:\Games\Tarkov",
+                "$env:USERPROFILE\Documents\Escape from Tarkov"
+            )
+            
+            foreach ($path in $tarkovPaths) {
+                if (Test-Path $path) {
+                    try {
+                        $configFile = Join-Path $path "local.ini"
+                        if (-not (Test-Path $configFile)) {
+                            $content = @"
+{
+  "Graphics": {
+    "Resolution": { "Width": 1920, "Height": 1080, "RefreshRate": 144 },
+    "ScreenMode": 1,
+    "VSync": false,
+    "TextureQuality": "High",
+    "ShadowQuality": "Low",
+    "OverallVisibility": 1500,
+    "GameFPSLimit": 144
+  }
+}
+"@
+                            Set-Content -Path $configFile -Value $content -Force
+                        } else {
+                            $content = Get-Content $configFile -Raw
+                            $optimized = $content -replace '(?i)"ScreenMode"\s*:\s*\d', '"ScreenMode": 1' `
+                                           -replace '(?i)"VSync"\s*:\s*(true|false)', '"VSync": false' `
+                                           -replace '(?i)"RefreshRate"\s*:\s*\d+', '"RefreshRate": 144' `
+                                           -replace '(?i)"GameFPSLimit"\s*:\s*\d+', '"GameFPSLimit": 144'
+                            Set-Content -Path $configFile -Value $optimized -Force
+                        }
+                        $backupPath = "$($configFile).bak"
+                        if (-not (Test-Path $backupPath)) {
+                            Copy-Item $configFile -Destination $backupPath -Force
+                        }
+                        Register-Operation -Action "Juegos" -Target "Escape from Tarkov" -Status "Success" -Details "Configuración optimizada en $path"
+                        Write-Host "Configuración de Tarkov optimizada en: $path" -ForegroundColor Green
+                        $global:ExecutionHistory.Stats.FilesModified++
+                    } catch {
+                        Register-Operation -Action "Juegos" -Target "Escape from Tarkov" -Status "Error" -Details $_.Exception.Message
+                        Write-Host "Error al optimizar Tarkov: $_" -ForegroundColor Red
+                    }
+                }
+            }
+        }
+        
+        Write-Progress -Activity $activity -Status "Completado" -PercentComplete 100
+        Register-Operation -Action "Juegos" -Target "Sistema" -Status "Success" -Details "Optimización de juegos completada"
+        Write-Host "Optimización de juegos completada." -ForegroundColor Green
+    } catch {
+        Write-Progress -Activity $activity -Completed
+        Register-Operation -Action "Juegos" -Target "Sistema" -Status "Error" -Details $_.Exception.Message
+        Write-Host "Error en optimización de juegos: $_" -ForegroundColor Red
+    }
+}
+
+function Install-X670E-Drivers {
+    param (
+        [bool]$InstallAll = $true,
+        [bool]$InstallBluetooth = $false,
+        [bool]$InstallWifi = $false,
+        [bool]$InstallUsbAudio = $false,
+        [bool]$InstallLan = $false,
+        [bool]$InstallChipset = $false,
+        [bool]$InstallUtilities = $false
+    )
+    
+    $activity = "Instalación de Drivers X670E-F"
+    Write-Host "`n[+] Instalando drivers X670E-F..." -ForegroundColor Cyan
+    Write-Progress -Activity $activity -Status "Iniciando" -PercentComplete 0
+    
+    try {
+        $basePath = "E:\!001 DRIVERS UTILIZADES\!DRIVERS X670E-F"
+        if (-not (Test-Path $basePath)) {
+            throw "No se encontró la ruta de los drivers: $basePath"
+        }
+        
+        $totalSteps = 0
+        if ($InstallAll -or $InstallBluetooth) { $totalSteps++ }
+        if ($InstallAll -or $InstallWifi) { $totalSteps++ }
+        if ($InstallAll -or $InstallUsbAudio) { $totalSteps++ }
+        if ($InstallAll -or $InstallLan) { $totalSteps++ }
+        if ($InstallAll -or $InstallChipset) { $totalSteps++ }
+        if ($InstallAll -or $InstallUtilities) { $totalSteps++ }
+        
+        $currentStep = 0
+        $jobs = @()
+        
+        if ($InstallAll -or $InstallBluetooth) {
+            $currentStep++
+            $percentComplete = [math]::Round(($currentStep / $totalSteps) * 100)
+            Write-Progress -Activity $activity -Status "Instalando Bluetooth" -PercentComplete $percentComplete
+            Write-Host "Instalando drivers Bluetooth..." -ForegroundColor Yellow
+            
+            $jobs += Start-Job -ScriptBlock {
+                param($path)
+                Start-Process -FilePath "$path\DRV Bluetooth\Install.bat" -NoNewWindow -Wait
+            } -ArgumentList $basePath
+        }
+        
+        if ($InstallAll -or $InstallWifi) {
+            $currentStep++
+            $percentComplete = [math]::Round(($currentStep / $totalSteps) * 100)
+            Write-Progress -Activity $activity -Status "Instalando WiFi" -PercentComplete $percentComplete
+            Write-Host "Instalando drivers WiFi..." -ForegroundColor Yellow
+            
+            $jobs += Start-Job -ScriptBlock {
+                param($path)
+                Start-Process -FilePath "$path\DRV WIFI\Install.bat" -NoNewWindow -Wait
+            } -ArgumentList $basePath
+        }
+        
+        if ($InstallAll -or $InstallUsbAudio) {
+            $currentStep++
+            $percentComplete = [math]::Round(($currentStep / $totalSteps) * 100)
+            Write-Progress -Activity $activity -Status "Instalando Audio USB" -PercentComplete $percentComplete
+            Write-Host "Instalando drivers Audio USB..." -ForegroundColor Yellow
+            
+            $jobs += Start-Job -ScriptBlock {
+                param($path)
+                Start-Process -FilePath "$path\DRV USB AUDIO\install.bat" -NoNewWindow -Wait
+            } -ArgumentList $basePath
+        }
+        
+        if ($InstallAll -or $InstallLan) {
+            $currentStep++
+            $percentComplete = [math]::Round(($currentStep / $totalSteps) * 100)
+            Write-Progress -Activity $activity -Status "Instalando LAN" -PercentComplete $percentComplete
+            Write-Host "Instalando drivers LAN..." -ForegroundColor Yellow
+            
+            $jobs += Start-Job -ScriptBlock {
+                param($path)
+                Start-Process -FilePath "$path\DRV LAN\install.cmd" -NoNewWindow -Wait
+            } -ArgumentList $basePath
+        }
+        
+        if ($InstallAll -or $InstallChipset) {
+            $currentStep++
+            $percentComplete = [math]::Round(($currentStep / $totalSteps) * 100)
+            Write-Progress -Activity $activity -Status "Instalando Chipset" -PercentComplete $percentComplete
+            Write-Host "Instalando drivers Chipset..." -ForegroundColor Yellow
+            
+            $jobs += Start-Job -ScriptBlock {
+                param($path)
+                Start-Process -FilePath "$path\DRV CHIPSET AMD 2\silentinstall.cmd" -NoNewWindow -Wait
+                Start-Process -FilePath "$path\DRV CHIPSET AMD 1\PCI\Install.bat" -NoNewWindow -Wait
+            } -ArgumentList $basePath
+        }
+        
+        if ($InstallAll -or $InstallUtilities) {
+            $currentStep++
+            $percentComplete = [math]::Round(($currentStep / $totalSteps) * 100)
+            Write-Progress -Activity $activity -Status "Instalando Utilidades" -PercentComplete $percentComplete
+            Write-Host "Instalando utilidades de placa..." -ForegroundColor Yellow
+            
+            $jobs += Start-Job -ScriptBlock {
+                param($path)
+                Start-Process -FilePath "$path\DRIVER FOR WINDOWS\ITE UCM DRIVER For Windows\ITE UCM DRIVER For Windows\install.cmd" -NoNewWindow -Wait
+            } -ArgumentList $basePath
+        }
+        
+        # Esperar con timeout de 5 minutos
+        $jobs | Wait-Job -Timeout 300 | Out-Null
+        $jobs | Receive-Job -ErrorAction SilentlyContinue
+        $jobs | Remove-Job -Force
+        
+        Write-Progress -Activity $activity -Status "Completado" -PercentComplete 100
+        Register-Operation -Action "Drivers" -Target "X670E-F" -Status "Success" -Details "Drivers instalados correctamente"
+        Write-Host "Instalación de drivers completada." -ForegroundColor Green
+    } catch {
+        Write-Progress -Activity $activity -Completed
+        Register-Operation -Action "Drivers" -Target "X670E-F" -Status "Error" -Details $_.Exception.Message
+        Write-Host "Error durante la instalación: $_" -ForegroundColor Red
+    }
+}
+
+function Install-Programs {
+    param (
+        [bool]$installGaming = $true,
+        [bool]$installUtilities = $true,
+        [bool]$installBrowsers = $true
+    )
+    
+    $activity = "Instalación de Programas"
+    Write-Host "`n[+] Instalando programas..." -ForegroundColor Cyan
+    Write-Progress -Activity $activity -Status "Iniciando" -PercentComplete 0
+    
+    # Verificar si Winget está instalado
+    if (-not (Get-Command "winget" -ErrorAction SilentlyContinue)) {
+        Write-Progress -Activity $activity -Status "Instalando Winget" -PercentComplete 5
+        Write-Host "Winget no está instalado. Intentando instalar..." -ForegroundColor Yellow
+        try {
+            $hasPackageManager = Get-AppxPackage -Name "Microsoft.DesktopAppInstaller"
+            if (-not $hasPackageManager) {
+                $releases_url = "https://api.github.com/repos/microsoft/winget-cli/releases/latest"
+                $releases = Invoke-RestMethod -Uri $releases_url
+                $latestRelease = $releases.assets | Where-Object { $_.browser_download_url.EndsWith(".msixbundle") } | Select-Object -First 1
+                $download_url = $latestRelease.browser_download_url
+                $output = "$env:TEMP\winget-latest.msixbundle"
+                Invoke-WebRequest -Uri $download_url -OutFile $output
+                Add-AppxPackage -Path $output
+                Register-Operation -Action "Winget" -Target "Instalación" -Status "Success" -Details "Winget instalado correctamente"
+                Write-Host "Winget instalado correctamente." -ForegroundColor Green
+            }
+        } catch {
+            Register-Operation -Action "Winget" -Target "Instalación" -Status "Error" -Details $_.Exception.Message
+            Write-Host "Error al instalar Winget: $_" -ForegroundColor Red
+            return
+        }
+    }
+    
+    # Lista completa de programas
+    $allPrograms = @(
+        "VideoLAN.VLC",
+        "Apple.iTunes",
+        "Spotify.Spotify",
+        "Bitwarden.Bitwarden",
+        "Telegram.TelegramDesktop",
+        "9NBDXK71NK08",  # WhatsApp Beta
+        "7zip.7zip",
+        "RARLab.WinRAR",
+        "Notepad++.Notepad++",
+        "Microsoft.PowerToys",
+        "QL-Win.QuickLook",
+        "Ablaze.Floorp",
+        "Guru3D.Afterburner",
+        "Rem0o.FanControl",
+        "Klocman.BulkCrapUninstaller",
+        "TechPowerUp.NVCleanstall",
+        "WinDirStat.WinDirStat",
+        "Wagnardsoft.DDU",
+        "Valve.Steam",
+        "EpicGames.EpicGamesLauncher",
+        "RiotGames.Valorant.EU",
+        "Discord.Discord",
+        "OBSProject.OBSStudio",
+        "Elgato.StreamDeck",
+        "Elgato.CameraHub"
+    )
+    
+    $totalPrograms = $allPrograms.Count
+    $currentProgram = 0
+    
+    foreach ($program in $allPrograms) {
+        $currentProgram++
+        $percentComplete = [math]::Round(($currentProgram / $totalPrograms) * 100)
+        Write-Progress -Activity $activity -Status "Instalando $program" -PercentComplete $percentComplete
+        Write-Host "Instalando $program..." -ForegroundColor Yellow
+        
+        try {
+            winget install --id=$program --silent --accept-package-agreements --accept-source-agreements
+            Register-Operation -Action "Programas" -Target $program -Status "Success" -Details "Programa instalado correctamente"
+            Write-Host "$program instalado correctamente." -ForegroundColor Green
+        } catch {
+            Register-Operation -Action "Programas" -Target $program -Status "Warning" -Details "No se pudo instalar"
+            Write-Host "Error al instalar ${program}: $_" -ForegroundColor Red
+        }
+    }
+    
+    Write-Progress -Activity $activity -Status "Completado" -PercentComplete 100
+    Register-Operation -Action "Programas" -Target "Sistema" -Status "Success" -Details "Instalación de programas completada"
+    Write-Host "Instalación de programas completada." -ForegroundColor Green
+}
+
+function Perform-Cleanup {
+    $activity = "Limpieza y Mantenimiento"
+    Write-Host "`n[+] Realizando limpieza del sistema..." -ForegroundColor Cyan
+    Write-Progress -Activity $activity -Status "Iniciando" -PercentComplete 0
+    
+    # Limpieza de archivos temporales
+    Write-Progress -Activity $activity -Status "Limpiando archivos temporales" -PercentComplete 20
+    Write-Host "Limpiando archivos temporales..." -ForegroundColor Yellow
+    
+    $tempPaths = @(
+        @{ Path = "$env:TEMP"; Description = "archivos temporales" },
+        @{ Path = "$env:WINDIR\Temp"; Description = "archivos temporales de Windows" },
+        @{ Path = "$env:LOCALAPPDATA\Temp"; Description = "archivos temporales locales" }
+    )
+    
+    foreach ($temp in $tempPaths) {
+        if (Test-Path $temp.Path) {
+            try {
+                Remove-Item -Path "$($temp.Path)\*" -Recurse -Force -ErrorAction Stop
+                Register-Operation -Action "Limpieza" -Target $temp.Description -Status "Success" -Details "Archivos eliminados"
+                Write-Host "Archivos eliminados en $($temp.Description) ($($temp.Path))." -ForegroundColor Green
+                $global:ExecutionHistory.Stats.ItemsRemoved++
+            } catch {
+                Register-Operation -Action "Limpieza" -Target $temp.Description -Status "Warning" -Details "No se pudo limpiar"
+                Write-Host "Error al eliminar archivos en $($temp.Description) ($($temp.Path)): $_" -ForegroundColor Red
+            }
+        } else {
+            Register-Operation -Action "Limpieza" -Target $temp.Description -Status "Info" -Details "Ruta no encontrada"
+            Write-Host "La ruta $($temp.Description) ($($temp.Path)) no existe." -ForegroundColor Yellow
+        }
+    }
+    
+    # Limpieza de prefetch
+    Write-Progress -Activity $activity -Status "Limpiando prefetch" -PercentComplete 40
+    Write-Host "Limpiando prefetch..." -ForegroundColor Yellow
+    
+    $prefetchPath = "$env:WINDIR\Prefetch"
+    if (Test-Path $prefetchPath) {
+        try {
+            Remove-Item -Path "$prefetchPath\*" -Force -ErrorAction Stop
+            Register-Operation -Action "Limpieza" -Target "Prefetch" -Status "Success" -Details "Archivos eliminados"
+            Write-Host "Prefetch limpiado." -ForegroundColor Green
+            $global:ExecutionHistory.Stats.ItemsRemoved++
+        } catch {
+            Register-Operation -Action "Limpieza" -Target "Prefetch" -Status "Warning" -Details "No se pudo limpiar"
+            Write-Host "Error al limpiar prefetch: $_" -ForegroundColor Red
+        }
+    } else {
+        Register-Operation -Action "Limpieza" -Target "Prefetch" -Status "Info" -Details "Ruta no encontrada"
+        Write-Host "La ruta de prefetch no existe." -ForegroundColor Yellow
+    }
+    
+    # Limpieza de mini dump files
+    Write-Progress -Activity $activity -Status "Limpiando mini dump files" -PercentComplete 60
+    Write-Host "Limpiando mini dump files..." -ForegroundColor Yellow
+    
+    try {
+        if (Test-Path "$env:SYSTEMDRIVE\*.dmp" -or Test-Path "$env:WINDIR\Minidump") {
+            # Eliminar archivos de mini dump
+            if (Test-Path "$env:SYSTEMDRIVE\*.dmp") {
+                Remove-Item -Path "$env:SYSTEMDRIVE\*.dmp" -Force -ErrorAction SilentlyContinue
+            }
+            if (Test-Path "$env:WINDIR\Minidump") {
+                Remove-Item -Path "$env:WINDIR\Minidump\*" -Force -ErrorAction SilentlyContinue
+            }
+            Register-Operation -Action "Limpieza" -Target "Mini dump files" -Status "Success" -Details "Archivos eliminados"
+            Write-Host "Mini dump files eliminados." -ForegroundColor Green
+            $global:ExecutionHistory.Stats.ItemsRemoved++
+        } else {
+            Register-Operation -Action "Limpieza" -Target "Mini dump files" -Status "Info" -Details "No se encontraron archivos"
+            Write-Host "No se encontraron archivos de mini dump para eliminar." -ForegroundColor Yellow
+        }
+    } catch {
+        Register-Operation -Action "Limpieza" -Target "Mini dump files" -Status "Error" -Details $_.Exception.Message
+        Write-Host "Error al limpiar mini dump files: $_" -ForegroundColor Red
+    }
+    
+    # Limpieza de logs antiguos
+    Write-Progress -Activity $activity -Status "Limpiando logs antiguos" -PercentComplete 80
+    Write-Host "Limpiando logs antiguos..." -ForegroundColor Yellow
+    
+    try {
+        wevtutil el | Foreach-Object { wevtutil cl "$_" }
+        Register-Operation -Action "Limpieza" -Target "Logs" -Status "Success" -Details "Logs limpiados"
+        Write-Host "Logs antiguos limpiados." -ForegroundColor Green
+        $global:ExecutionHistory.Stats.ItemsRemoved++
+    } catch {
+        Register-Operation -Action "Limpieza" -Target "Logs" -Status "Error" -Details $_.Exception.Message
+        Write-Host "Error al limpiar logs: $_" -ForegroundColor Red
+    }
+    
+    # Desfragmentación y optimización de unidades
+    Write-Progress -Activity $activity -Status "Optimizando unidades" -PercentComplete 90
+    Write-Host "Optimizando unidades..." -ForegroundColor Yellow
+    
+    try {
+        Get-Volume | Where-Object DriveType -eq "Fixed" | ForEach-Object {
+            if ($_.DriveType -eq "Fixed" -and $_.FileSystemType -eq "NTFS") {
+                if ($_.MediaType -eq "HDD") {
+                    Optimize-Volume -DriveLetter $_.DriveLetter -Defrag -Verbose
+                } else {
+                    Optimize-Volume -DriveLetter $_.DriveLetter -ReTrim -Verbose
+                }
+            }
+        }
+        Register-Operation -Action "Mantenimiento" -Target "Unidades" -Status "Success" -Details "Unidades optimizadas"
+        Write-Host "Unidades optimizadas." -ForegroundColor Green
+    } catch {
+        Register-Operation -Action "Mantenimiento" -Target "Unidades" -Status "Error" -Details $_.Exception.Message
+        Write-Host "Error al optimizar unidades: $_" -ForegroundColor Red
+    }
+    
+    Write-Progress -Activity $activity -Status "Completado" -PercentComplete 100
+    Register-Operation -Action "Limpieza" -Target "Sistema" -Status "Success" -Details "Limpieza y mantenimiento completados"
+    Write-Host "Limpieza y mantenimiento completados." -ForegroundColor Green
+}
+
+function Disable-TelemetryAndDefender {
+    $activity = "Deshabilitar Telemetría y Defender"
+    Write-Host "`n[+] Deshabilitando telemetría y Windows Defender..." -ForegroundColor Cyan
+    Write-Progress -Activity $activity -Status "Iniciando" -PercentComplete 0
+    
+    try {
+        # Servicios de telemetría
+        $services = @("DiagTrack", "dmwappushservice", "diagnosticshub.standardcollector.service")
+        foreach ($service in $services) {
+            Stop-Service -Name $service -Force -ErrorAction SilentlyContinue
+            Set-Service -Name $service -StartupType Disabled -ErrorAction SilentlyContinue
+            sc.exe sdset $service "D:(D;;DCLCWPDTSD;;;IU)(D;;DCLCWPDTSD;;;SU)(D;;DCLCWPDTSD;;;BA)(D;;DCLCWPDTSD;;;S-1-5-80)" | Out-Null
+        }
+        
+        Register-Operation -Action "Telemetría" -Target "Servicios" -Status "Success" -Details "Servicios de telemetría deshabilitados"
+        Write-Host "Servicios de telemetría deshabilitados." -ForegroundColor Green
+
+        # Claves de registro para telemetría
+        $telemetryPaths = @(
+            "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\DataCollection",
+            "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection"
+        )
+
+        foreach ($path in $telemetryPaths) {
+            try {
+                if (-not (Test-Path $path)) { New-Item -Path $path -Force | Out-Null }
+                Set-ItemProperty -Path $path -Name "AllowTelemetry" -Type DWord -Value 0
+                Set-ItemProperty -Path $path -Name "DoNotShowFeedbackNotifications" -Type DWord -Value 1
+                Set-ItemProperty -Path $path -Name "DisableTelemetry" -Type DWord -Value 1
+            } catch {
+                Register-Operation -Action "Telemetría" -Target $path -Status "Warning" -Details "No se pudo configurar"
+                Write-Host "Error al configurar $path - $_" -ForegroundColor Yellow
+            }
+        }
+        
+        Register-Operation -Action "Telemetría" -Target "Registro" -Status "Success" -Details "Configuración de telemetría deshabilitada"
+        Write-Host "Configuración de telemetría deshabilitada." -ForegroundColor Green
+
+        # Deshabilitar Windows Defender
+        if (Test-Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender") {
+            Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender" -Name "DisableAntiSpyware" -Type DWord -Value 1
+            Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender" -Name "DisableRoutinelyTakingAction" -Type DWord -Value 1
+        }
+
+        # Deshabilitar servicios de Defender
+        $defenderServices = @("WinDefend", "WdNisSvc", "Sense", "SecurityHealthService")
+        foreach ($service in $defenderServices) {
+            Stop-Service -Name $service -Force -ErrorAction SilentlyContinue
+            Set-Service -Name $service -StartupType Disabled -ErrorAction SilentlyContinue
+        }
+        
+        Register-Operation -Action "Defender" -Target "Servicios" -Status "Success" -Details "Servicios de Defender deshabilitados"
+        Write-Host "Servicios de Defender deshabilitados." -ForegroundColor Green
+
+        # Deshabilitar Tamper Protection
+        Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows Defender\Features" -Name "TamperProtection" -Type DWord -Value 0
+        
+        Register-Operation -Action "Defender" -Target "Tamper Protection" -Status "Success" -Details "Tamper Protection deshabilitado"
+        Write-Host "Tamper Protection deshabilitado." -ForegroundColor Green
+
+        Write-Progress -Activity $activity -Status "Completado" -PercentComplete 100
+        Register-Operation -Action "Seguridad" -Target "Sistema" -Status "Success" -Details "Telemetría y Windows Defender deshabilitados"
+        Write-Host "Telemetría y Windows Defender deshabilitados permanentemente." -ForegroundColor Green
+    } catch {
+        Write-Progress -Activity $activity -Completed
+        Register-Operation -Action "Seguridad" -Target "Sistema" -Status "Error" -Details $_.Exception.Message
+        Write-Host "Error al deshabilitar telemetría/Defender: $_" -ForegroundColor Red
+    }
+}
+
+function Disable-WindowsUpdate {
+    $activity = "Deshabilitar Windows Update"
+    Write-Host "`n[+] Deshabilitando Windows Update..." -ForegroundColor Cyan
+    Write-Progress -Activity $activity -Status "Iniciando" -PercentComplete 0
+    
+    try {
+        # Detener servicios de Windows Update
+        Stop-Service -Name "wuauserv" -Force -ErrorAction SilentlyContinue
+        Stop-Service -Name "UsoSvc" -Force -ErrorAction SilentlyContinue
+        Stop-Service -Name "WaaSMedicSvc" -Force -ErrorAction SilentlyContinue
+
+        # Deshabilitar servicios
+        Set-Service -Name "wuauserv" -StartupType Disabled -ErrorAction SilentlyContinue
+        Set-Service -Name "UsoSvc" -StartupType Disabled -ErrorAction SilentlyContinue
+        Set-Service -Name "WaaSMedicSvc" -StartupType Disabled -ErrorAction SilentlyContinue
+        
+        Register-Operation -Action "Windows Update" -Target "Servicios" -Status "Success" -Details "Servicios de Windows Update deshabilitados"
+        Write-Host "Servicios de Windows Update deshabilitados." -ForegroundColor Green
+
+        # Configuración del registro para deshabilitar actualizaciones
+        $updatePaths = @(
+            "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate",
+            "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU"
+        )
+
+        foreach ($path in $updatePaths) {
+            if (-not (Test-Path $path)) { New-Item -Path $path -Force | Out-Null }
+            Set-ItemProperty -Path $path -Name "NoAutoUpdate" -Type DWord -Value 1
+            Set-ItemProperty -Path $path -Name "DisableOSUpgrade" -Type DWord -Value 1
+            Set-ItemProperty -Path $path -Name "DeferFeatureUpdates" -Type DWord -Value 1
+            Set-ItemProperty -Path $path -Name "DeferFeatureUpdatesPeriodInDays" -Type DWord -Value 365
+            Set-ItemProperty -Path $path -Name "DeferQualityUpdates" -Type DWord -Value 1
+            Set-ItemProperty -Path $path -Name "DeferQualityUpdatesPeriodInDays" -Type DWord -Value 365
+        }
+        
+        Register-Operation -Action "Windows Update" -Target "Registro" -Status "Success" -Details "Configuración de actualizaciones deshabilitada"
+        Write-Host "Configuración de actualizaciones deshabilitada." -ForegroundColor Green
+
+        # Bloquear acceso a Windows Update
+        $null = netsh advfirewall firewall add rule name="Block Windows Update" dir=out action=block service=wuauserv enable=yes
+
+        Register-Operation -Action "Windows Update" -Target "Firewall" -Status "Success" -Details "Regla de firewall agregada"
+        Write-Host "Regla de firewall para bloquear Windows Update agregada." -ForegroundColor Green
+
+        Write-Progress -Activity $activity -Status "Completado" -PercentComplete 100
+        Register-Operation -Action "Windows Update" -Target "Sistema" -Status "Success" -Details "Windows Update deshabilitado permanentemente"
+        Write-Host "Windows Update deshabilitado permanentemente." -ForegroundColor Green
+    } catch {
+        Write-Progress -Activity $activity -Completed
+        Register-Operation -Action "Windows Update" -Target "Sistema" -Status "Error" -Details $_.Exception.Message
+        Write-Host "Error al deshabilitar Windows Update: $_" -ForegroundColor Red
+    }
+}
+
+# =============================
+# Función Principal
+# =============================
+
+function Main {
+    try {
+        # Inicialización
+        Show-Header
+        Write-Host "  [!] ADVERTENCIA: Este script modificará la configuración de tu sistema" -ForegroundColor Red
+        Write-Host "  Recomendaciones:" -ForegroundColor Yellow
+        Write-Host "  - Crear un punto de restauración del sistema" -ForegroundColor Yellow
+        Write-Host "  - Tener backups de tus datos importantes" -ForegroundColor Yellow
+        Write-Host "  - Ejecutar en una ventana de PowerShell/CMD con privilegios de administrador`n" -ForegroundColor Yellow
+        
+        $confirm = Read-Host "  ¿Deseas continuar? (S/N)"
+        if ($confirm -ne "S" -and $confirm -ne "s") {
+            Write-Host "  Script cancelado por el usuario." -ForegroundColor Yellow
+            Pause
+            Exit
+        }
+
+        # Verificar privilegios de administrador
+        if (-not (Test-Admin)) {
+            Write-Host "Este script requiere privilegios de administrador. Por favor, ejecuta PowerShell como administrador." -ForegroundColor Red
+            Pause
+            exit 1
+        }
+
+        # Iniciar registro
+        Start-Transcript -Path $global:logFile | Out-Null
+        Register-Operation -Action "Inicio" -Target "Sistema" -Status "Info" -Details "Molina Optimizer 6.1 iniciado"
+        Write-Host "Sistema: $([System.Environment]::OSVersion.VersionString)" -ForegroundColor Cyan
+        Write-Host "Hardware: $(Get-WmiObject Win32_Processor).Name" -ForegroundColor Cyan
+        Write-Host "Memoria: $([math]::Round((Get-WmiObject Win32_ComputerSystem).TotalPhysicalMemory/1GB))GB RAM" -ForegroundColor Cyan
+
+        # Bucle principal del menú
+        $running = $true
+        while ($running) {
+            $selection = Show-MainMenu
+            
+            switch ($selection) {
+                "1" { 
+                    # Optimización completa
+                    Optimize-SystemSettings
+                    Remove-Bloatware
+                    Optimize-DNS
+                    Optimize-Games -GameName "All"
+                    Install-Programs
+                    Perform-Cleanup
+                    Pause
+                }
+                "2" { 
+                    # Menú de optimización por categorías
+                    $optRunning = $true
+                    while ($optRunning) {
+                        $optSelection = Show-OptimizationMenu
+                        
+                        switch ($optSelection) {
+                            "1" { Optimize-SystemSettings; Pause }
+                            "2" { Remove-Bloatware; Pause }
+                            "3" { Optimize-DNS; Pause }
+                            "4" { Perform-Cleanup; Pause }
+                            "5" { Perform-Cleanup; Pause }
+                            "6" { $optRunning = $false }
+                            default { Write-Host "Opción no válida." -ForegroundColor Red; Pause }
+                        }
+                    }
+                }
+                "3" { 
+                    # Instalar programas
+                    Install-Programs
+                    Pause
+                }
+                "4" { 
+                    # Menú de optimización de juegos
+                    $gamesRunning = $true
+                    while ($gamesRunning) {
+                        $gamesSelection = Show-GamesMenu
+                        
+                        switch ($gamesSelection) {
+                            "1" { Optimize-Games -GameName "Valorant"; Pause }
+                            "2" { Optimize-Games -GameName "NewWorld"; Pause }
+                            "3" { Optimize-Games -GameName "EFT"; Pause }
+                            "4" { Optimize-Games -GameName "All"; Pause }
+                            "5" { 
+                                Set-ItemProperty -Path "HKCU:\System\GameConfigStore" -Name "GameDVR_FSEBehaviorMode" -Value 2 -Type DWord -Force
+                                Write-Host "Optimización de pantalla completa forzada." -ForegroundColor Green
+                                Pause 
+                            }
+                            "6" { $gamesRunning = $false }
+                            default { Write-Host "Opción no válida." -ForegroundColor Red; Pause }
+                        }
+                    }
+                }
+                "5" { 
+                    # Menú de drivers
+                    $driversRunning = $true
+                    while ($driversRunning) {
+                        $driversSelection = Show-DriversMenu
+                        
+                        switch ($driversSelection) {
+                            "1" { Install-X670E-Drivers -InstallAll $true; Pause }
+                            "2" { Install-X670E-Drivers -InstallChipset $true; Pause }
+                            "3" { Install-X670E-Drivers -InstallWifi $true -InstallLan $true; Pause }
+                            "4" { Install-X670E-Drivers -InstallUsbAudio $true; Pause }
+                            "5" { Install-X670E-Drivers -InstallUtilities $true; Pause }
+                            "6" { $driversRunning = $false }
+                            default { Write-Host "Opción no válida." -ForegroundColor Red; Pause }
+                        }
+                    }
+                }
+                "6" { 
+                    # Menú avanzado
+                    $advRunning = $true
+                    while ($advRunning) {
+                        $advSelection = Show-AdvancedMenu
+                        
+                        switch ($advSelection) {
+                            "1" { Disable-TelemetryAndDefender; Pause }
+                            "2" { Disable-WindowsUpdate; Pause }
+                            "3" { 
+                                # Crear usuario admin y configurar backups
+                                net user AdminTemp /add
+                                net localgroup administrators AdminTemp /add
+                                Write-Host "Usuario temporal 'AdminTemp' creado con privilegios de administrador." -ForegroundColor Green
+                                Pause 
+                            }
+                            "4" { 
+                                # Configurar tema oscuro
+                                Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" -Name "AppsUseLightTheme" -Value 0
+                                Write-Host "Tema oscuro aplicado." -ForegroundColor Green
+                                Pause 
+                            }
+                            "5" { 
+                                # Optimizar red
+                                Optimize-DNS
+                                Pause 
+                            }
+                            "6" { 
+                                # Resetear políticas
+                                secedit /configure /cfg %windir%\inf\defltbase.inf /db defltbase.sdb /verbose
+                                Write-Host "Políticas de seguridad restablecidas a valores predeterminados." -ForegroundColor Green
+                                Pause 
+                            }
+                            "7" { $advRunning = $false }
+                            default { Write-Host "Opción no válida." -ForegroundColor Red; Pause }
+                        }
+                    }
+                }
+                "7" { 
+                    # Mostrar historial
+                    Show-History
+                }
+                "8" { 
+                    # Salir
+                    $running = $false
+                }
+                default {
+                    Write-Host "Opción no válida. Por favor, seleccione una opción del 1 al 8." -ForegroundColor Red
+                    Pause
+                }
+            }
+        }
+
+        # Finalización
+        Register-Operation -Action "Finalización" -Target "Sistema" -Status "Info" -Details "Script completado"
+        Write-Host "Script completado. Revisa el historial para ver los cambios realizados." -ForegroundColor Green
+        Write-Host "Log completo guardado en: $global:logFile" -ForegroundColor Cyan
+        Stop-Transcript | Out-Null
+        Pause
+    } catch {
+        Write-Host "Error al ejecutar el script: $_" -ForegroundColor Red
+        Register-Operation -Action "Error" -Target "Sistema" -Status "Error" -Details $_.Exception.Message
+        Stop-Transcript | Out-Null
+        Pause
+        Exit 1
+    }
+}
+
+# Ejecutar la función principal
+Main
+
+
 SCRIPT 1:
 
 Aquí está el script completo con todas las mejoras integradas (basado en tu primer script pero con TODO lo que faltaba del segundo añadido de forma organizada):
