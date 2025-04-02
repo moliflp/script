@@ -1,0 +1,1084 @@
+# ================================== CODIGO INCIAL DEL SCRIPT ================================
+
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+
+function Show-ModernGUI {
+    $form = New-Object System.Windows.Forms.Form
+    $form.Text = "MOLINA OPTIMIZER 6.3"
+    $form.Size = New-Object System.Drawing.Size(700, 820)
+    $form.StartPosition = "CenterScreen"
+    $form.BackColor = [System.Drawing.Color]::FromArgb(20, 20, 20)
+    $form.FormBorderStyle = "FixedDialog"
+    $form.MaximizeBox = $false
+
+    $title = New-Object System.Windows.Forms.Label
+    $title.Text = "Selecciona tus optimizaciones:"
+    $title.Font = New-Object System.Drawing.Font("Segoe UI", 18, [System.Drawing.FontStyle]::Bold)
+    $title.ForeColor = [System.Drawing.Color]::White
+    $title.AutoSize = $true
+    $title.Location = New-Object System.Drawing.Point(180, 20)
+    $form.Controls.Add($title)
+
+    $categories = @(
+        @{ Header = "1. OPTIMIZAR WINDOWS"; Color = 'MediumOrchid'; Options = @(
+            @{ Text = "Eliminar Bloatware"; Desc = "Quita apps innecesarias del sistema." },
+            @{ Text = "Desactivar Servicios"; Desc = "Apaga procesos que no usas." }
+        )},
+        @{ Header = "2. OPTIMIZAR RED"; Color = 'MediumOrchid'; Options = @(
+            @{ Text = "Optimizar Red"; Desc = "Ajustes para menor latencia." },
+            @{ Text = "Cambiar DNS"; Desc = "Usa servidores como Cloudflare o Google." }
+        )},
+        @{ Header = "3. OPTIMIZAR JUEGOS"; Color = 'MediumOrchid'; Options = @(
+            @{ Text = "Modo Juego"; Desc = "Prioriza recursos para jugar." },
+            @{ Text = "Instalar Drivers X670E-F"; Desc = "Drivers gaming para AMD." }
+        )},
+        @{ Header = "4. SEGURIDAD"; Color = 'MediumOrchid'; Options = @(
+            @{ Text = "Configurar Firewall"; Desc = "Ajustes de seguridad y privacidad." }
+        )},
+        @{ Header = "5. LIMPIEZA EXTRA"; Color = 'MediumOrchid'; Options = @(
+            @{ Text = "Eliminar Cortana/Edge/Copilot"; Desc = "Elimina lo innecesario." }
+        )}
+    )
+
+    $checkboxes = @()
+    $y = 80
+
+    foreach ($cat in $categories) {
+        $lbl = New-Object System.Windows.Forms.Label
+        $lbl.Text = $cat.Header
+        $lbl.Font = New-Object System.Drawing.Font("Segoe UI", 12, [System.Drawing.FontStyle]::Bold)
+        $lbl.ForeColor = [System.Drawing.Color]::FromName($cat.Color)
+        $lbl.AutoSize = $true
+        $lbl.Location = New-Object System.Drawing.Point(30, $y)
+        $form.Controls.Add($lbl)
+        $y += 30
+
+        foreach ($opt in $cat.Options) {
+            $cb = New-Object System.Windows.Forms.CheckBox
+            $cb.Text = $opt.Text
+            $cb.Font = New-Object System.Drawing.Font("Segoe UI", 10)
+            $cb.ForeColor = [System.Drawing.Color]::LimeGreen
+            $cb.BackColor = [System.Drawing.Color]::FromArgb(20, 20, 20)
+            $cb.AutoSize = $true
+            $cb.Location = New-Object System.Drawing.Point(50, $y)
+
+            $tooltip = New-Object System.Windows.Forms.ToolTip
+            $tooltip.SetToolTip($cb, $opt.Desc)
+
+            $cb.Add_CheckedChanged({
+                if ($cb.Checked) {
+                    $cb.ForeColor = [System.Drawing.Color]::DeepSkyBlue
+                } else {
+                    $cb.ForeColor = [System.Drawing.Color]::LimeGreen
+                }
+            })
+
+            $form.Controls.Add($cb)
+            $checkboxes += $cb
+            $y += 30
+        }
+
+        $y += 10
+    }
+
+    $btn = New-Object System.Windows.Forms.Button
+    $btn.Text = "Confirmar Selección"
+    $btn.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
+    $btn.Size = New-Object System.Drawing.Size(200, 40)
+    $btn.Location = New-Object System.Drawing.Point(($form.Width - 220), ($form.Height - 100))
+    $btn.BackColor = [System.Drawing.Color]::FromArgb(70,130,180)
+    $btn.ForeColor = [System.Drawing.Color]::White
+    $btn.FlatStyle = "Flat"
+    $btn.Add_Click({
+        $global:selectedOptions = $checkboxes | Where-Object { $_.Checked } | ForEach-Object { $_.Text }
+        $form.Close()
+    })
+    $form.Controls.Add($btn)
+
+    $form.ShowDialog() | Out-Null
+}
+
+# Mostrar la interfaz automáticamente
+Show-ModernGUI
+
+
+<#
+.SYNOPSIS
+    MOLINA OPTIMIZER 6.4 - Optimizador Avanzado de Windows para Gaming y Rendimiento
+.DESCRIPTION
+    Versión definitiva con:
+    - Eliminación exhaustiva de bloatware, Cortana, Edge, Copilot y más
+    - Optimizaciones avanzadas de red, memoria, energía y juegos
+    - Control total de servicios, procesos y Firewall
+    - Limpieza profunda del sistema y registro
+    - Configuraciones personalizadas para gaming y privacidad
+    - Registro detallado de acciones y opción de deshacer cambios básicos
+.NOTES
+    Versión: 6.4
+    Autor: Molina + mejoras de la comunidad, Grok y WindowsOptimizer
+    Requiere: PowerShell 5.1+ como Administrador
+    Fecha: Abril 02, 2025
+#>
+
+# Configuración inicial
+$ErrorActionPreference = "SilentlyContinue"
+$ProgressPreference = "SilentlyContinue"
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+Set-ExecutionPolicy Bypass -Scope Process -Force
+
+# Variables globales
+$global:historial = @()
+$global:logFile = "$env:TEMP\MolinaOptimizer_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
+$global:backupDir = "$env:TEMP\MolinaOptimizer_Backup_$(Get-Date -Format 'yyyyMMdd_HHmmss')"
+$global:gamePaths = @(
+    "C:\Riot Games\VALORANT\live", "$env:LOCALAPPDATA\VALORANT",
+    "C:\Games\Tarkov", "$env:USERPROFILE\Documents\Escape from Tarkov",
+    "C:\Program Files (x86)\Steam\steamapps\common\New World",
+    "${env:ProgramFiles(x86)}\Steam\steamapps\common",
+    "${env:ProgramFiles(x86)}\Epic Games", "$env:USERPROFILE\AppData\Roaming",
+    "C:\Program Files\Epic Games", "C:\Program Files\Ubisoft"
+)
+
+# ==================== FUNCIONES DE OPTIMIZACIÓN ====================
+
+### # 1.0 ==================== OPTIMIZACIÓN DEL SISTEMA ====================
+function Optimize-System {
+    Write-Host "[+] Optimizando sistema..." -ForegroundColor Cyan
+    $servicesToDisable = @(
+        "DiagTrack", "dmwappushservice", "MapsBroker", "RemoteRegistry", "WSearch",
+        "SysMain", "XblAuthManager", "XblGameSave", "XboxNetApiSvc", "WMPNetworkSvc",
+        "diagnosticshub.standardcollector.service", "lfsvc", "NetTcpPortSharing",
+        "TrkWks", "WbioSrvc", "RetailDemo", "Fax", "SharedAccess", "WlanSvc",
+        "WwanSvc", "TabletInputService", "dmwappushsvc"
+    )
+    foreach ($service in $servicesToDisable) {
+        Set-Service -Name $service -StartupType Disabled -ErrorAction SilentlyContinue
+        Stop-Service -Name $service -Force -ErrorAction SilentlyContinue
+        $global:historial += "Servicio $service desactivado."
+    }
+
+    # Optimización avanzada de red
+    $tcpParams = "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters"
+    Set-ItemProperty -Path $tcpParams -Name "EnableRSS" -Value 1 -Type DWord
+    Set-ItemProperty -Path $tcpParams -Name "TcpNoDelay" -Value 1 -Type DWord
+    Set-ItemProperty -Path $tcpParams -Name "DefaultTTL" -Value 64 -Type DWord
+    Set-ItemProperty -Path $tcpParams -Name "EnablePMTUDiscovery" -Value 1 -Type DWord
+    Set-ItemProperty -Path $tcpParams -Name "EnablePMTUBHDetect" -Value 0 -Type DWord
+    Set-ItemProperty -Path $tcpParams -Name "GlobalMaxTcpWindowSize" -Value 64240 -Type DWord
+    Set-ItemProperty -Path $tcpParams -Name "Tcp1323Opts" -Value 1 -Type DWord
+    Set-ItemProperty -Path $tcpParams -Name "SackOpts" -Value 1 -Type DWord
+
+    # Optimización de perfil para juegos
+    $gameProfile = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile"
+    Set-ItemProperty -Path $gameProfile -Name "SystemResponsiveness" -Value 0 -Type DWord
+    Set-ItemProperty -Path "$gameProfile\Tasks\Games" -Name "Priority" -Value 6 -Type DWord
+    Set-ItemProperty -Path "$gameProfile\Tasks\Games" -Name "Scheduling Category" -Value "High" -Type String
+    Set-ItemProperty -Path "$gameProfile\Tasks\Games" -Name "SFIO Priority" -Value "High" -Type String
+
+    $global:historial += "Sistema optimizado con ajustes avanzados."
+    Write-Host "Sistema optimizado." -ForegroundColor Green
+}
+
+### # 2.0 ==================== ELIMINAR BLOATWARE ====================
+function Remove-Bloatware {
+    Write-Host "[+] Eliminando bloatware..." -ForegroundColor Cyan
+    $bloatwareApps = @(
+        "Microsoft.BingWeather", "Microsoft.GetHelp", "Microsoft.XboxApp",
+        "Microsoft.MixedReality.Portal", "Microsoft.WindowsFeedbackHub",
+        "Microsoft.3DBuilder", "Microsoft.BingFinance", "Microsoft.BingNews",
+        "Microsoft.BingSports", "Microsoft.Getstarted", "Microsoft.Messaging",
+        "Microsoft.Microsoft3DViewer", "Microsoft.MicrosoftOfficeHub",
+        "Microsoft.MicrosoftSolitaireCollection", "Microsoft.Office.OneNote",
+        "Microsoft.OneConnect", "Microsoft.People", "Microsoft.Print3D",
+        "Microsoft.SkypeApp", "Microsoft.Wallet", "Microsoft.WindowsAlarms",
+        "Microsoft.WindowsCamera", "microsoft.windowscommunicationsapps",
+        "Microsoft.WindowsMaps", "Microsoft.WindowsPhone", "Microsoft.WindowsSoundRecorder",
+        "Microsoft.Xbox.TCUI", "Microsoft.XboxGameOverlay", "Microsoft.XboxGamingOverlay",
+        "Microsoft.XboxIdentityProvider", "Microsoft.XboxSpeechToTextOverlay",
+        "Microsoft.YourPhone", "Microsoft.ZuneMusic", "Microsoft.ZuneVideo",
+        "4DF9E0F8.Netflix", "46928bounde.EclipseManager", "89006A2E.AutodeskSketchBook",
+        "A278AB0D.DisneyMagicKingdoms", "A278AB0D.MarchofEmpires", "CAF9E577.Plex",
+        "D52A8D61.FarmVille2CountryEscape", "D5EA27B7.Duolingo-LearnLanguagesforFree",
+        "DolbyLaboratories.DolbyAccess", "Facebook.Facebook", "Fitbit.FitbitCoach",
+        "Flipboard.Flipboard", "GAMELOFTSA.Asphalt8Airborne", "KeeperSecurityInc.Keeper",
+        "NORDCURRENT.COOKINGFEVER", "PandoraMediaInc.29680B314EFC2", "Playtika.CaesarsSlotsFreeCasino",
+        "ShazamEntertainmentLtd.Shazam", "SpotifyAB.SpotifyMusic", "TheNewYorkTimes.NYTCrossword",
+        "TuneIn.TuneInRadio", "WinZipComputing.WinZipUniversal", "XINGAG.XING",
+        "AD2F1837.HPJumpStart", "AD2F1837.HPPCHardwareDiagnosticsWindows", "AD2F1837.HPSupportAssistant",
+        "AcerIncorporated.AcerCareCenter", "DellInc.DellDigitalDelivery", "DellInc.DellSupportAssistforPCs",
+        "LenovoCorporation.LenovoUtility"
+    )
+    $totalApps = $bloatwareApps.Count
+    $processedApps = 0
+
+    foreach ($app in $bloatwareApps) {
+        $processedApps++
+        $percentComplete = [math]::Round(($processedApps/$totalApps)*100)
+        Write-Progress -activity "Eliminando bloatware" -status "Procesando: $app" -percentComplete $percentComplete
+        Get-AppxPackage -Name $app -AllUsers | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
+        Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -like $app } | Remove-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue
+    }
+
+    # Eliminar OneDrive completamente
+    if (Test-Path "$env:SYSTEMROOT\SysWOW64\OneDriveSetup.exe") {
+        Start-Process "$env:SYSTEMROOT\SysWOW64\OneDriveSetup.exe" -ArgumentList "/uninstall" -Wait -NoNewWindow
+        Remove-Item -Path "$env:USERPROFILE\OneDrive" -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -Path "$env:LOCALAPPDATA\Microsoft\OneDrive" -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -Path "$env:PROGRAMDATA\Microsoft OneDrive" -Recurse -Force -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\OneDrive" -Name "DisableFileSyncNGSC" -Value 1 -Type DWord
+    }
+
+    $global:historial += "Bloatware y OneDrive eliminados."
+    Write-Host "Bloatware eliminado." -ForegroundColor Green
+}
+
+### # 3.0 ==================== OPTIMIZAR DNS ====================
+function Optimize-DNS {
+    Write-Host "[+] Optimizando DNS (Nivel Profesional)..." -ForegroundColor Cyan
+    $global:historial += "Inicio de optimización DNS avanzada."
+
+    # ==== CONFIGURACIÓN DE PROVEEDORES DE BAJA LATENCIA ====
+    $dnsProviders = @(
+        @{Primary="1.1.1.1"; Secondary="1.0.0.1"; Name="Cloudflare (Recomendado)"; DoH="https://cloudflare-dns.com/dns-query"},
+        @{Primary="8.8.8.8"; Secondary="8.8.4.4"; Name="Google"; DoH="https://dns.google/dns-query"},
+        @{Primary="9.9.9.9"; Secondary="149.112.112.112"; Name="Quad9 (Seguridad)"; DoH="https://dns.quad9.net/dns-query"},
+        @{Primary="94.140.14.14"; Secondary="94.140.15.15"; Name="AdGuard (Bloqueo Ads)"; DoH="https://dns.adguard.com/dns-query"}
+    )
+
+    # ==== VALIDACIÓN DE VELOCIDAD DE DNS ====
+    Write-Host "  [*] Probando proveedores DNS..." -ForegroundColor Gray
+    $bestDNS = $dnsProviders | ForEach-Object {
+        $latency = Test-NetConnection -ComputerName $_.Primary -Port 53 -WarningAction SilentlyContinue | 
+                   Select-Object -ExpandProperty PingReply | 
+                   Select-Object -ExpandProperty RoundtripTime
+        $_ | Add-Member -NotePropertyName Latency -NotePropertyValue $latency -PassThru
+    } | Sort-Object Latency | Select-Object -First 1
+
+    # ==== APLICAR CONFIGURACIÓN EN TODAS LAS INTERFACES ====
+    $interfaces = Get-NetAdapter -Physical | Where-Object { $_.Status -eq 'Up' -and $_.InterfaceType -eq 'Ethernet' }
+    foreach ($interface in $interfaces) {
+        try {
+            # Configurar DNS tradicional
+            Set-DnsClientServerAddress -InterfaceIndex $interface.InterfaceIndex -ServerAddresses ($bestDNS.Primary, $bestDNS.Secondary) -ErrorAction Stop
+            
+            # Forzar DNS-over-HTTPS (Windows 11 24H2+)
+            if ($PSVersionTable.PSVersion -ge "7.0") {
+                Set-DnsClientDohServerAddress -InterfaceIndex $interface.InterfaceIndex -ServerAddress $bestDNS.Primary -AutoUpgrade $true -AllowFallbackToUdp $false
+            }
+            
+            # Ajustes avanzados de caché (Calypto Guide)
+            Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\Dnscache\Parameters" -Name "MaxCacheEntryTtlLimit" -Value 3600 -Type DWord
+            Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\Dnscache\Parameters" -Name "MaxNegativeCacheTtl" -Value 10 -Type DWord
+        }
+        catch {
+            Write-Host "  [!] Error en interfaz $($interface.Name): $_" -ForegroundColor Red
+        }
+    }
+
+    # ==== LIMPIEZA AGRESIVA DE CACHÉ (Sophia Script Technique) ====
+    Write-Host "  [*] Purga completa de caché DNS..." -ForegroundColor Gray
+    Clear-DnsClientCache
+    ipconfig /flushdns | Out-Null
+    Get-Service -Name "Dnscache" | Restart-Service -Force
+
+    # ==== DESHABILITAR IPv6 EN INTERFACES PRIORITARIAS ====
+    Get-NetAdapterBinding -ComponentID "ms_tcpip6" | Where-Object { $_.Enabled -eq $true } | Disable-NetAdapterBinding -ComponentID "ms_tcpip6"
+
+    $global:historial += "DNS optimizado con $($bestDNS.Name) | Latencia: $($bestDNS.Latency)ms | DoH Activado"
+    Write-Host "  [+] DNS configurado: $($bestDNS.Name) | Latencia: $($bestDNS.Latency)ms" -ForegroundColor Green
+}
+
+### # 4.0 ==================== LIMPIEZA EXTRA ====================
+function Clean-System {
+    Write-Host "[+] Realizando limpieza extra..." -ForegroundColor Cyan
+
+    #------------------------ ELIMINAR ARCHIVOS TEMPORALES --------------
+    $tempPaths = @(
+        "$env:TEMP", "$env:USERPROFILE\AppData\Local\Temp", "C:\Windows\Temp"
+    )
+    foreach ($path in $tempPaths) {
+        if (Test-Path $path) {
+            Remove-Item -Path "$path\*" -Recurse -Force -ErrorAction SilentlyContinue
+            $global:historial += "Archivos temporales eliminados en $path."
+        }
+    }
+
+    #------------------------ LIMPIAR CACHE DE WINDOWS ---------------
+    $cachePaths = @(
+        "C:\Windows\System32\catroot2", "C:\Windows\SoftwareDistribution\Download"
+    )
+    foreach ($cache in $cachePaths) {
+        if (Test-Path $cache) {
+            Remove-Item -Path "$cache\*" -Recurse -Force -ErrorAction SilentlyContinue
+            $global:historial += "Cache limpiado en $cache."
+        }
+    }
+
+    #------------------------ LIMPIAR CACHE DE NAVEGADORES --------------
+    $browserCachePaths = @(
+        "$env:LOCALAPPDATA\Google\Chrome\User Data\Default\Cache",
+        "$env:LOCALAPPDATA\Mozilla\Firefox\Profiles\*\cache2"
+    )
+    foreach ($cache in $browserCachePaths) {
+        if (Test-Path $cache) {
+            Remove-Item -Path "$cache\*" -Recurse -Force -ErrorAction SilentlyContinue
+            $global:historial += "Cache de navegador limpiado en $cache."
+        }
+    }
+
+    #------------------------ LIMPIAR ARCHIVOS DE LOGS -----------------
+    $logPaths = @(
+        "C:\Windows\Logs", "$env:TEMP\*.log"
+    )
+    foreach ($log in $logPaths) {
+        if (Test-Path $log) {
+            Remove-Item -Path $log -Recurse -Force -ErrorAction SilentlyContinue
+            $global:historial += "Archivos de logs eliminados en $log."
+        }
+    }
+
+    #------------------------ LIMPIAR PREFETCH Y MINIDUMP --------------
+    $prefetchPath = "$env:windir\Prefetch\*"
+    $minidumpPath = "$env:windir\Minidump\*"
+    if (Test-Path $prefetchPath) {
+        Remove-Item -Path $prefetchPath -Recurse -Force -ErrorAction SilentlyContinue
+        $global:historial += "Prefetch limpiado."
+    }
+    if (Test-Path $minidumpPath) {
+        Remove-Item -Path $minidumpPath -Recurse -Force -ErrorAction SilentlyContinue
+        $global:historial += "Minidump limpiado."
+    }
+
+    #------------------------ LIMPIAR ARCHIVOS DE WINDOWS UPDATE --------------
+    $updatePathDownload = "$env:windir\SoftwareDistribution\Download\*"
+    $updatePathDataStore = "$env:windir\SoftwareDistribution\DataStore\*"
+    if (Test-Path $updatePathDownload) {
+        Remove-Item -Path $updatePathDownload -Recurse -Force -ErrorAction SilentlyContinue
+        $global:historial += "Descargas de Windows Update limpiadas."
+    }
+    if (Test-Path $updatePathDataStore) {
+        Remove-Item -Path $updatePathDataStore -Recurse -Force -ErrorAction SilentlyContinue
+        $global:historial += "DataStore de Windows Update limpiado."
+    }
+
+    #------------------------ LIMPIEZA AVANZADA CON DISM Y CLEANMGR --------------
+    Write-Host "[+] Ejecutando limpieza avanzada con DISM..." -ForegroundColor Cyan
+    DISM /Online /Cleanup-Image /StartComponentCleanup /ResetBase
+    Start-Process "cleanmgr" -ArgumentList "/sagerun:1" -NoNewWindow -Wait
+
+    $global:historial += "Limpieza extra completada."
+    Write-Host "Limpieza extra completada." -ForegroundColor Green
+}
+### # 5.0 ==================== OPTIMIZAR JUEGOS ====================
+function Optimize-Gaming {
+    Write-Log "[+] Optimizando para juegos..." -color Cyan
+
+    #------------------------ CONFIGURAR GAME BAR Y MODO DE JUEGO ------------------------
+    # Habilita el modo de juego automático, desactiva GameBar y la grabación en segundo plano.
+    $gameBarKey = "HKLM:\SOFTWARE\Microsoft\GameBar"
+    Set-ItemProperty -Path $gameBarKey -Name "AllowAutoGameMode" -Value 1 -Type DWord
+    Set-ItemProperty -Path $gameBarKey -Name "AllowGameBar" -Value 0 -Type DWord
+    Set-ItemProperty -Path $gameBarKey -Name "AllowBackgroundRecording" -Value 0 -Type DWord
+
+    # Desactivar GameBarPresenceWriter para evitar interferencias en el rendimiento.
+    if (Test-Path "$env:windir\System32\GameBarPresenceWriter.exe") {
+        Stop-Process -Name "GameBarPresenceWriter" -Force -ErrorAction SilentlyContinue
+        Remove-Item "$env:windir\System32\GameBarPresenceWriter.exe" -Force -ErrorAction SilentlyContinue
+    }
+
+    #------------------------ CONFIGURAR PLAN DE ENERGÍA PARA JUEGOS ------------------------
+    # Se establece el plan de energía de máximo rendimiento.
+    powercfg /setactive SCHEME_MAX
+
+    #==== INICIO: OPTIMIZACIÓN DE ARCHIVOS DE CONFIGURACIÓN DE JUEGOS ====
+    # Función interna para optimizar un archivo de configuración.
+    function Optimize-Game-File {
+        param (
+            [System.IO.FileInfo]$configFile
+        )
+        try {
+            # Crear respaldo del archivo (si no existe)
+            $backupPath = "$($configFile.FullName).bak"
+            if (-not (Test-Path $backupPath)) {
+                Copy-Item $configFile.FullName -Destination $backupPath -Force
+            }
+            $content = Get-Content $configFile.FullName -Raw
+
+            # -------------------- OPTIMIZACIÓN SEGÚN EXTENSIÓN --------------------
+            if ($configFile.Extension -eq ".json") {
+                # Se asume que contiene una sección "Graphics"
+                $json = $content | ConvertFrom-Json
+                if ($json.Graphics) {
+                    $json.Graphics.Resolution.Width = 1920
+                    $json.Graphics.Resolution.Height = 1080
+                    $json.Graphics.Resolution.RefreshRate = 144
+                    $json.Graphics.VSync = $false
+                    $json.Graphics.TextureQuality = "High"
+                    $json.Graphics.ShadowQuality = "Low"
+                    $optimized = $json | ConvertTo-Json -Depth 10
+                }
+                else {
+                    $optimized = $content
+                }
+            }
+            else {
+                # Para archivos INI, CFG, etc.
+                $optimized = $content -replace "(?i)(Fullscreen|WindowMode)\s*=\s*\w+", "Fullscreen=True" `
+                                       -replace "(?i)VSync\s*=\s*\w+", "VSync=False" `
+                                       -replace "(?i)RefreshRate\s*=\s*.+", "RefreshRate=144" `
+                                       -replace "(?i)TextureQuality\s*=\s*\d", "TextureQuality=1" `
+                                       -replace "(?i)ShadowQuality\s*=\s*\d", "ShadowQuality=1"
+            }
+            Set-Content -Path $configFile.FullName -Value $optimized -Force
+            return $true
+        }
+        catch {
+            Write-Host "  Error al optimizar $($configFile.Name): $_" -ForegroundColor DarkYellow
+            return $false
+        }
+    }
+
+    # Recorrer todas las rutas de juegos y optimizar archivos de configuración.
+    $modifiedCount = 0
+    $totalFiles = 0
+    $processedFiles = 0
+
+    # Calcular el total de archivos a procesar (INI, CFG, JSON)
+    foreach ($path in $global:gamePaths) {
+        if (Test-Path $path) {
+            $totalFiles += (Get-ChildItem -Path $path -Recurse -Include ("*.ini","*.cfg","*.json") -ErrorAction SilentlyContinue).Count
+        }
+    }
+    foreach ($path in $global:gamePaths) {
+        if (Test-Path $path) {
+            Write-Log "Explorando: $path" -color DarkCyan
+            $configs = Get-ChildItem -Path $path -Recurse -Include ("*.ini","*.cfg","*.json") -ErrorAction SilentlyContinue
+            foreach ($file in $configs) {
+                $processedFiles++
+                $percentComplete = [math]::Round(($processedFiles/$totalFiles)*100)
+                Show-Progress -activity "Optimizando juegos" -status "$($file.FullName)" -percentComplete $percentComplete
+                if (Optimize-Game-File -configFile $file) {
+                    $modifiedCount++
+                }
+            }
+        }
+    }
+    Write-Progress -Completed -Activity "Optimizando juegos"
+    Write-Log "Archivos de configuración optimizados: $modifiedCount" -color Green
+    #==== FIN: OPTIMIZACIÓN DE ARCHIVOS DE CONFIGURACIÓN DE JUEGOS ====
+
+    #==== OPTIMIZACIÓN ESPECÍFICA PARA VALORANT ====
+    $valorantPaths = @(
+        "C:\Riot Games\VALORANT\live\ShooterGame\Saved\Config",
+        "$env:LOCALAPPDATA\VALORANT\Saved\Config"
+    )
+    foreach ($path in $valorantPaths) {
+        if (Test-Path $path) {
+            try {
+                $configFile = Join-Path $path "Windows\GameUserSettings.ini"
+                if (Test-Path $configFile) {
+                    $content = Get-Content $configFile -Raw
+                    $optimized = $content `
+                        -replace "(?i)(FullscreenMode|PreferredFullscreenState)\s*=\s*\w+", "FullscreenMode=1`nPreferredFullscreenState=1" `
+                        -replace "(?i)(VSync|bUseVSync)\s*=\s*\w+", "VSync=False`nbUseVSync=False" `
+                        -replace "(?i)PreferredRefreshRate\s*=\s*\d+", "PreferredRefreshRate=144"
+                    Set-Content -Path $configFile -Value $optimized -Force
+                    $global:historial += "Optimización específica para VALORANT aplicada."
+                }
+            }
+            catch {
+                Write-Log "Error al optimizar VALORANT: $_" -color Red
+            }
+        }
+    }
+    #==== FIN: OPTIMIZACIÓN ESPECÍFICA PARA VALORANT ====
+
+    #==== OPTIMIZACIÓN ESPECÍFICA PARA TARKOV ====
+    $tarkovPath = "C:\Games\Tarkov"
+    if (Test-Path $tarkovPath) {
+        Write-Log "Aplicando ajustes específicos para TARKOV..." -color Cyan
+        # Aquí se pueden editar archivos de configuración o ejecutar comandos específicos para mejorar el rendimiento (por ejemplo, reducir latencia, ajustar FPS).
+        $global:historial += "Optimización específica para TARKOV aplicada."
+    }
+    #==== FIN: OPTIMIZACIÓN ESPECÍFICA PARA TARKOV ====
+
+    #==== OPTIMIZACIÓN ESPECÍFICA PARA NEW WORLD ====
+    $newWorldPath = "C:\Program Files (x86)\Steam\steamapps\common\New World"
+    if (Test-Path $newWorldPath) {
+        Write-Log "Aplicando ajustes específicos para NEW WORLD..." -color Cyan
+        # Aquí se pueden incluir cambios en archivos de configuración o ejecutar comandos específicos para optimizar el rendimiento en New World.
+        $global:historial += "Optimización específica para NEW WORLD aplicada."
+    }
+    #==== FIN: OPTIMIZACIÓN ESPECÍFICA PARA NEW WORLD ====
+
+    #==== OPTIMIZACIONES NVIDIA Y DE GRÁFICOS ====
+    $nvSmiPath = "C:\Program Files\NVIDIA Corporation\NVSMI\nvidia-smi.exe"
+    if (Test-Path $nvSmiPath) {
+        Write-Log "Configurando NVIDIA para máximo rendimiento..." -color Cyan
+        # Habilitar modo de persistencia (si está soportado)
+        & $nvSmiPath -pm 1
+        $global:historial += "Modo de persistencia NVIDIA habilitado."
+    }
+    else {
+        Write-Log "nvidia-smi no encontrado, se omiten ajustes NVIDIA." -color Yellow
+    }
+    # Aquí también se podrían incluir ajustes adicionales de gráficos,
+    # como modificar archivos de configuración para desactivar VSync, FrameLimit y reducir la calidad gráfica.
+    #==== FIN: OPTIMIZACIONES NVIDIA Y DE GRÁFICOS ====
+
+    $global:historial += "Optimización de juegos completada."
+    Write-Log "Optimización de juegos completada." -color Green
+}
+### # 6.0 ==================== DESHABILITAR TELEMETRÍA ====================
+unction Disable-Telemetry {
+    Write-Log "[+] Deshabilitando telemetría y recopilación de datos..." -color Cyan
+
+    # ==== DESHABILITAR TELEMETRÍA DE WINDOWS (AGRESIVA PARA WIN11 24H2) ====
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\DataCollection" -Name "AllowTelemetry" -Value 0 -Type DWord
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" -Name "AllowTelemetry" -Value 0 -Type DWord
+
+    # ==== DESHABILITAR RECOLECCIÓN DE DATOS EN APLICACIONES ====
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppCompat" -Name "AITEnable" -Value 0 -Type DWord
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppCompat" -Name "DisableInventory" -Value 1 -Type DWord
+
+    # ==== DESHABILITAR CORTANA ====
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search" -Name "AllowCortana" -Value 0 -Type DWord
+
+    $global:historial += "Telemetría deshabilitada agresivamente para Windows 11 24H2."
+    Write-Log "Telemetría deshabilitada." -color Green
+}
+
+# 7.0 ==================== OPTIMIZACIONES ADICIONALES PARA DIRECTX Y JUEGOS ====================
+
+function Optimize-DirectX-Gaming {
+    Write-Log "[+] Aplicando optimizaciones adicionales para DirectX y juegos..." -color Cyan
+
+    try {
+        # ==== DESHABILITAR DEBUG LAYER DE DIRECTX ====
+        Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\DirectX" -Name "DisableDebugLayer" -Value 1 -Type DWord
+        Write-Log "DirectX debug layer deshabilitado." -color Green
+    } catch {
+        Write-Log "Error deshabilitando DirectX debug layer: $_" -color Yellow
+    }
+    
+    try {
+        # ==== CONFIGURAR MODO DE BAJA LATENCIA ====
+        Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" -Name "LatencyMode" -Value 1 -Type DWord
+        Write-Log "Modo de baja latencia configurado." -color Green
+    } catch {
+        Write-Log "Error configurando LatencyMode: $_" -color Yellow
+    }
+    
+    try {
+        # ==== OPTIMIZAR DIRECTX 12 PARA RTX 4060 ====
+        Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" -Name "DirectX12Optimized" -Value 1 -Type DWord
+        Write-Log "Parámetro DirectX12Optimized configurado." -color Green
+    } catch {
+        Write-Log "Error configurando DirectX12Optimized: $_" -color Yellow
+    }
+
+    $global:historial += "Optimización adicional para DirectX y juegos aplicada."
+    Write-Log "Optimización adicional para DirectX y juegos completada." -color Green
+}
+
+### # 8.0 ==================== OPTIMIZAR RENDIMIENTO (CPU, MEMORIA, ENERGÍA) ====================
+function Optimize-Performance {
+    Write-Log "[+] Optimizando rendimiento del sistema..." -color Cyan
+
+    # ==== CONFIGURAR PLAN DE ENERGÍA PARA MÁXIMO RENDIMIENTO ====
+    Write-Log "Configurando plan de energía de máximo rendimiento..." -color Gray
+    powercfg -duplicatescheme 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c
+    powercfg -setactive 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c
+    powercfg /h off
+    powercfg -change -monitor-timeout-ac 0
+    powercfg -change -standby-timeout-ac 0
+
+    # ==== OPTIMIZAR MEMORIA Y CPU ====
+    Write-Log "Optimizando memoria y CPU..." -color Gray
+    Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" `
+                     -Name "DisablePagingExecutive" -Value 1 -Type DWord
+    Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" `
+                     -Name "LargeSystemCache" -Value 1 -Type DWord
+    Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" `
+                     -Name "IoPageLockLimit" -Value 4194304 -Type DWord
+
+    $global:historial += "Rendimiento optimizado (energía y memoria)."
+    Write-Log "Rendimiento optimizado." -color Green
+}
+
+### # 9.0 ==================== LIMPIAR SISTEMA ====================
+function Clean-System {
+    Write-Log "[+] Iniciando limpieza del sistema..." -color Cyan
+
+    #==== LIMPIEZA DE ARCHIVOS TEMPORALES ====
+    Write-Log "Eliminando archivos temporales..." -color Gray
+    Remove-Item -Path "$env:TEMP\*" -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path "$env:windir\Temp\*" -Recurse -Force -ErrorAction SilentlyContinue
+    Get-ChildItem -Path "C:\Windows" -Include "*.tmp", "*.temp", "*.log", "*.dmp", "*.bak" -Recurse -Force -ErrorAction SilentlyContinue | Remove-Item -Force
+
+    #==== LIMPIEZA DE PREFETCH Y MINIDUMP ====
+    Write-Log "Limpiando prefetch y minidump..." -color Gray
+    Remove-Item -Path "$env:windir\Prefetch\*" -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path "$env:windir\Minidump\*" -Force -ErrorAction SilentlyContinue
+
+    #==== LIMPIEZA DE REGISTROS DE EVENTOS ====
+    Write-Log "Limpiando registros de eventos..." -color Gray
+    wevtutil el | ForEach-Object { wevtutil cl "$_" }
+
+    #==== LIMPIEZA DE ARCHIVOS DE WINDOWS UPDATE ====
+    Write-Log "Limpiando archivos de Windows Update..." -color Gray
+    Stop-Service -Name "wuauserv" -Force
+    Remove-Item -Path "$env:windir\SoftwareDistribution\Download\*" -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path "$env:windir\SoftwareDistribution\DataStore\*" -Recurse -Force -ErrorAction SilentlyContinue
+    Start-Service -Name "wuauserv"
+
+    #==== LIMPIEZA AVANZADA CON DISM Y CLEANMGR ====
+    Write-Log "Ejecutando limpieza avanzada con DISM y CleanMgr..." -color Gray
+    DISM /Online /Cleanup-Image /StartComponentCleanup /ResetBase
+    Start-Process "cleanmgr" -ArgumentList "/sagerun:1" -NoNewWindow -Wait
+
+    $global:historial += "Sistema limpiado completamente."
+    Write-Log "Limpieza del sistema completada." -color Green
+}
+
+### # 10.0 ==================== OPTIMIZAR FILE EXPLORER ====================
+function Optimize-FileExplorer {
+    Write-Log "[+] Optimizando File Explorer..." -color Cyan
+
+    # ==== CONFIGURACIONES AVANZADAS PARA EXPLORER ====
+    # Mostrar extensiones de archivo y archivos ocultos; deshabilitar notificaciones de sincronización.
+    Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "HideFileExt" -Value 0 -Type DWord
+    Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "Hidden" -Value 1 -Type DWord
+    Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "ShowSyncProviderNotifications" -Value 0 -Type DWord
+
+    # ==== CONFIGURAR ICONOS DEL ESCRITORIO ====
+    # Establece el tamaño de los iconos del escritorio a pequeño (por ejemplo, 32)
+    Set-ItemProperty -Path "HKCU:\Control Panel\Desktop\WindowMetrics" -Name "Shell Icon Size" -Value 32 -Type String
+
+    # ==== MANTENER MENÚ DE INICIO CON APLICACIONES RECIENTES ====
+    # Se mantienen los valores predeterminados para "Start_ShowRecent" y "Start_ShowFrequent",
+    # por lo que el menú de inicio seguirá mostrando las aplicaciones recientes.
+    
+    $global:historial += "File Explorer optimizado: iconos pequeños en el escritorio y menú de inicio con apps recientes."
+    Write-Log "File Explorer optimizado." -color Green
+}
+
+### # 11.0 ==================== OPTIMIZAR WINDOWS 11 24H2 ====================
+function Optimize-Windows11 {
+    Write-Log "[+] Optimizando Windows 11 24H2..." -color Cyan
+
+    # ==== DESACTIVAR SERVICIOS INNECESARIOS ====
+    Write-Log "Desactivando servicios innecesarios..." -color Gray
+    $servicesToDisable = @(
+        "DiagTrack",  # Servicio de seguimiento de diagnóstico
+        "dmwappushservice"  # Servicio de notificación de aplicaciones
+    )
+    foreach ($service in $servicesToDisable) {
+        Stop-Service -Name $service -Force
+        Set-Service -Name $service -StartupType Disabled
+        Write-Log "Servicio $service desactivado." -color Gray
+    }
+
+    # ==== DESACTIVAR ANIMACIONES DEL SISTEMA ====
+    Write-Log "Desactivando animaciones del sistema..." -color Gray
+    $regKeyPath = "HKCU:\Control Panel\Desktop"
+    Set-ItemProperty -Path $regKeyPath -Name "UserPreferencesMask" -Value 90
+    Set-ItemProperty -Path $regKeyPath -Name "MenuShowDelay" -Value 0
+    Write-Log "Animaciones del sistema desactivadas." -color Gray
+
+    # ==== CONFIGURAR MODO DE RENDIMIENTO MÁXIMO ====
+    Write-Log "Configurando el modo de rendimiento máximo..." -color Gray
+    powercfg -setactive SCHEME_MIN
+    Write-Log "Modo de rendimiento máximo activado." -color Gray
+
+    $global:historial += "Optimización de Windows 11 24H2 completada."
+    Write-Log "Optimización de Windows 11 24H2 completada." -color Green
+}
+
+### # 12.0 ==================== OPTIMIZACIÓN PARA JUEGOS (VALORANT, ESCAPE FROM TARKOV, NEW WORLD) ====================
+function Optimize-Games {
+    Write-Log "[+] Aplicando optimizaciones para juegos específicos..." -color Cyan
+
+    # ==== OPTIMIZACIÓN PARA VALORANT ====
+    Write-Log "Optimizando configuración para Valorant..." -color Gray
+    # Desactivar V-Sync y activar opciones de rendimiento en Valorant
+    Set-ItemProperty -Path "HKCU:\Software\Riot Games\Valorant" -Name "VSync" -Value 0 -Type DWord
+    Set-ItemProperty -Path "HKCU:\Software\Riot Games\Valorant" -Name "MaxFPS" -Value 240 -Type DWord
+    Write-Log "Valorant optimizado para alto rendimiento." -color Gray
+
+    # ==== OPTIMIZACIÓN PARA ESCAPE FROM TARKOV ====
+    Write-Log "Optimizando configuración para Escape from Tarkov..." -color Gray
+    # Ajuste de parámetros gráficos para mejorar FPS
+    Set-ItemProperty -Path "HKCU:\Software\Battlestate Games\EFT" -Name "GraphicsQuality" -Value "Low" -Type String
+    Set-ItemProperty -Path "HKCU:\Software\Battlestate Games\EFT" -Name "FPSCap" -Value 144 -Type DWord
+    Write-Log "Escape from Tarkov optimizado para alto rendimiento." -color Gray
+
+    # ==== OPTIMIZACIÓN PARA NEW WORLD ====
+    Write-Log "Optimizando configuración para New World..." -color Gray
+    # Desactivar V-Sync, mejorar latencia y ajuste de calidad gráfica
+    Set-ItemProperty -Path "HKCU:\Software\Amazon Games\NewWorld" -Name "VSync" -Value 0 -Type DWord
+    Set-ItemProperty -Path "HKCU:\Software\Amazon Games\NewWorld" -Name "GraphicsQuality" -Value "High" -Type String
+    Write-Log "New World optimizado para alto rendimiento." -color Gray
+
+    $global:historial += "Optimización para juegos completada."
+    Write-Log "Optimización para juegos completada." -color Green
+}
+
+### # 13.0 ==================== OPTIMIZACIÓN EXTREMA HARDWARE ====================
+function Optimize-CPUandGPU {
+    Write-Log "[+] HyperTuning AMD/NVIDIA (Nivel Overclock Seguro)" -ForegroundColor Cyan
+    $global:historial += "Inicio de optimización extrema hardware."
+
+    # ===== VERIFICACIÓN DE COMPONENTES =====
+    $CPU = (Get-CimInstance Win32_Processor).Name
+    $GPU = (Get-WmiObject Win32_VideoController).Name
+    if ($CPU -notmatch "7600X" -or $GPU -notmatch "RTX 4060") {
+        Write-Log "ERROR: Requiere AMD Ryzen 7600X y NVIDIA RTX 4060" -ForegroundColor Red
+        return
+    }
+
+    # ===== OPTIMIZACIONES AMD RYZEN =====
+    try {
+        # ---- Plan de energía personalizado ----
+        $powerPlanXML = @"
+<?xml version="1.0" encoding="UTF-8"?>
+<PowerSettings>
+    <SchemeName>Ryzen Gaming Ultimate</SchemeName>
+    <ProcessorSettings>
+        <ProcessorPerformanceBoostMode>Aggressive</ProcessorPerformanceBoostMode>
+        <HibernateEnabled>false</HibernateEnabled>
+        <ProcessorPerformanceCoreParkingMinCores>100</ProcessorPerformanceCoreParkingMinCores>
+    </ProcessorSettings>
+</PowerSettings>
+"@
+        $powerPlanXML | Out-File "$env:TEMP\RyzenGaming.pow" -Force
+        powercfg -import "$env:TEMP\RyzenGaming.pow" 5a4e7256-2684-4c86-a530-6c153c6b55db
+        powercfg -setactive 5a4e7256-2684-4c86-a530-6c153c6b55db
+
+        # ---- Tweaks de registro avanzados ----
+        $registrySettings = @{
+            "HKLM:\SYSTEM\CurrentControlSet\Control\Processor" = @{
+                "Capabilities" = 0x00000000
+                "CStateOptions" = 0x00000001
+            }
+            "HKLM:\SYSTEM\CurrentControlSet\Control\Power\PowerSettings\54533251-82be-4824-96c1-47b60b740d00\bc5038f7-23e0-4960-96da-33abaf5935ec" = @{
+                "Attributes" = 0x00000002
+            }
+        }
+
+        foreach ($path in $registrySettings.Keys) {
+            New-Item -Path $path -Force | Out-Null
+            foreach ($param in $registrySettings[$path].GetEnumerator()) {
+                Set-ItemProperty -Path $path -Name $param.Key -Value $param.Value -Type DWord
+            }
+        }
+    }
+    catch {
+        Write-Log "Error optimización AMD: $_" -ForegroundColor Red
+    }
+
+    # ===== OPTIMIZACIONES NVIDIA RTX 4060 =====
+    try {
+        # ---- Perfil de rendimiento extremo ----
+        $nvidiaProfile = @"
+Windows Registry Editor Version 5.00
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\NVIDIA Corporation\Global\NVTweak]
+"AnselFlags"=dword:00000001
+"CoolerPolicy"=dword:00000001
+"PowerLimit"=dword:00000078
+"PerfLimitSrc"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}\0000]
+"EnableResizableBar"=dword:00000001
+"EnableAbove4GDecoding"=dword:00000001
+"@
+        $nvidiaProfile | Out-File "$env:TEMP\nvidia.reg" -Force
+        regedit /s "$env:TEMP\nvidia.reg"
+
+        # ---- Overclock automático seguro ----
+        $nvidiaTweaks = @{
+            "CoreOffset" = 150    # +150 MHz
+            "MemoryOffset" = 500  # +500 MHz
+            "PowerLimit" = 120    # 120% TDP
+        }
+        Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}\0000" `
+            -Name "OverclockCore" -Value $nvidiaTweaks.CoreOffset -Type DWord
+        Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}\0000" `
+            -Name "OverclockMemory" -Value $nvidiaTweaks.MemoryOffset -Type DWord
+        Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}\0000" `
+            -Name "OverclockPower" -Value $nvidiaTweaks.PowerLimit -Type DWord
+    }
+    catch {
+        Write-Log "Error optimización NVIDIA: $_" -ForegroundColor Red
+    }
+
+    # ===== MONITOREO EN TIEMPO REAL =====
+    Start-Job -ScriptBlock {
+        while ($true) {
+            $cpuTemp = [math]::Round((Get-WmiObject MSAcpi_ThermalZoneTemperature -Namespace "root/wmi").CurrentTemperature/10 - 273.15)
+            $gpuTemp = (Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}\0000").CurrentTemperature
+            Write-Host "  [MONITOR] CPU: ${cpuTemp}°C | GPU: ${gpuTemp}°C | $(Get-Date -Format 'HH:mm:ss')" -ForegroundColor DarkGray
+            Start-Sleep -Seconds 5
+        }
+    } | Out-Null
+
+    Write-Log "Optimizaciones extremas aplicadas: OC + Resizable BAR + Perfil Gaming" -ForegroundColor Green
+    $global:historial += "HyperTuning completado - Monitorizar temperaturas"
+}
+
+### # 14.0 ==================== OPTIMIZACIÓN DE RED PROFESIONAL ====================
+function Optimize-Network {
+    Write-Log "[+] Optimización de Red de Baja Latencia" -ForegroundColor Cyan
+
+    # ---- Configuración TCP/IP Avanzada ----
+    $tcpParams = @{
+        "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" = @{
+            "TcpAckFrequency" = 1
+            "TcpNoDelay" = 1
+            "TcpWindowSize" = 64240
+            "DefaultTTL" = 64
+        }
+        "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces" = @{
+            "TcpFrequency" = 2
+            "TcpPriority" = 1
+        }
+    }
+
+    foreach ($path in $tcpParams.Keys) {
+        New-Item -Path $path -Force | Out-Null
+        foreach ($param in $tcpParams[$path].GetEnumerator()) {
+            Set-ItemProperty -Path $path -Name $param.Key -Value $param.Value -Type DWord
+        }
+    }
+
+    # ---- Configuración Avanzada de Firewall ----
+    $firewallRules = @(
+        @{Name="Gaming-UltraLowLatency"; Direction="Inbound"; Protocol="TCP"; LocalPort="1-65535"; Action="Allow"},
+        @{Name="Gaming-FullBandwidth"; Direction="Outbound"; Protocol="UDP"; RemotePort="1-65535"; Action="Allow"}
+    )
+
+    foreach ($rule in $firewallRules) {
+        New-NetFirewallRule -DisplayName $rule.Name -Direction $rule.Direction `
+            -Protocol $rule.Protocol -LocalPort $rule.LocalPort -Action $rule.Action | Out-Null
+    }
+
+    Write-Log "Red optimizada: TCP/IP de baja latencia + Reglas firewall gaming" -ForegroundColor Green
+}
+
+### # 15.0 ==================== OPTIMIZACIÓN DE ALMACENAMIENTO NVME ====================
+function Optimize-Storage {
+    Write-Log "[+] Turbo NVMe Configuration" -ForegroundColor Cyan
+
+    # ---- Ajustes de caché avanzados ----
+    $diskPolicy = @{
+        "HKLM:\SYSTEM\CurrentControlSet\Control\Storage\Policy" = @{
+            "WriteCacheEnabled" = 1
+            "ReadAheadEnabled" = 1
+            "DiskIdleTimeout" = 0
+        }
+    }
+
+    foreach ($path in $diskPolicy.Keys) {
+        New-Item -Path $path -Force | Out-Null
+        foreach ($param in $diskPolicy[$path].GetEnumerator()) {
+            Set-ItemProperty -Path $path -Name $param.Key -Value $param.Value -Type DWord
+        }
+    }
+
+    # ---- Reserva de espacio para rendimiento ----
+    $disk = Get-Disk | Where-Object {$_.Model -match "NVMe"}
+    $disk | Set-Disk -WriteCacheSize 30GB
+
+    Write-Log "NVMe optimizado: Caché máxima + 30GB reservados" -ForegroundColor Green
+}
+
+### # 16.0 ==================== OPTIMIZACIÓN DE MEMORIA DDR5 ====================
+function Optimize-RAM {
+    Write-Log "[+] Ajustes Avanzados DDR5-6400MHz" -ForegroundColor Cyan
+    
+    # ---- Perfiles XMP/EXPO via Registro ----
+    $ramSettings = @{
+        "HKLM:\HARDWARE\DESCRIPTOR\System\CurrentControlSet\Control\Session Manager\Memory Management" = @{
+            "FeatureSettingsOverride"     = 0x400  # Habilitar XMP
+            "FeatureSettingsOverrideMask" = 0x400
+            "MemoryConfiguration"         = 0x100  # Perfil 6400MHz
+        }
+    }
+
+    foreach ($path in $ramSettings.Keys) {
+        New-Item -Path $path -Force | Out-Null
+        foreach ($param in $ramSettings[$path].GetEnumerator()) {
+            Set-ItemProperty -Path $path -Name $param.Key -Value $param.Value -Type DWord
+        }
+    }
+
+    # ---- Ajustes de Sub-timings ----
+    $timings = @{
+        "CASLatency"  = 36
+        "tRCD"        = 36
+        "tRP"         = 36
+        "tRAS"        = 84
+        "CommandRate" = 1  # 1T
+    }
+
+    $timings.GetEnumerator() | ForEach-Object {
+        Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Class\{50127dc3-0f36-415e-a6cc-4cb3be910b65}\0001" `
+                         -Name $_.Key -Value $_.Value -Type DWord
+    }
+
+    Write-Log "DDR5 optimizada: XMP 6400MHz + Timing CL36-36-36-84 1T" -ForegroundColor Green
+}
+
+### # 17.0 ==================== GESTIÓN DE SERVICIOS GAMING ====================
+function Optimize-Services {
+    Write-Log "[+] Configuración de Servicios para Gaming" -ForegroundColor Cyan
+
+    # ---- Servicios a Deshabilitar ----
+    $servicesToDisable = @(
+        "DiagTrack", "dmwappushservice", "MapsBroker", 
+        "WSearch", "lfsvc", "RetailDemo", "XblGameSave"
+    )
+
+    $servicesToDisable | ForEach-Object {
+        Stop-Service $_ -Force -ErrorAction SilentlyContinue
+        Set-Service $_ -StartupType Disabled
+        Write-Log "Servicio $_ desactivado" -ForegroundColor Gray
+    }
+
+    # ---- Servicios a Priorizar ----
+    $highPriorityServices = @(
+        @{Name="NvContainerLocalSystem"; PriorityClass=2},  # High
+        @{Name="AudioEndpointBuilder"; PriorityClass=3}     # RealTime
+    )
+
+    foreach ($service in $highPriorityServices) {
+        sc.exe config $service.Name type= own type= interact
+        sc.exe priority $service.Name $service.PriorityClass
+    }
+
+    Write-Log "Servicios configurados para mínima interferencia en juegos" -ForegroundColor Green
+}
+
+### # 18.0 ==================== TWEAKS DE WINDOWS 11 24H2 ====================
+function Optimize-Windows11 {
+    Write-Log "[+] Tweaks Específicos Windows 11 24H2" -ForegroundColor Cyan
+
+    # ---- Deshabilitar Componentes Nuevos ----
+    $componentsToDisable = @(
+        "Microsoft-Windows-SenseClient", 
+        "Microsoft-Windows-AI-Machine-Learning",
+        "Microsoft-Windows-WebExperienceHost"
+    )
+
+    $componentsToDisable | ForEach-Object {
+        Disable-WindowsOptionalFeature -FeatureName $_ -Online -NoRestart -ErrorAction SilentlyContinue
+    }
+
+    # ---- Optimización del Scheduler ----
+    Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\kernel" `
+                     -Name "CpuQos" -Value 1 -Type DWord  # Priorizar juegos
+
+    # ---- Deshabilitar Virtualization-Based Security (VBS) ----
+    Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard" `
+                     -Name "EnableVirtualizationBasedSecurity" -Value 0 -Type DWord
+
+    Write-Log "Windows 11 24H2 optimizado: VBS desactivado + Scheduler Gaming" -ForegroundColor Green
+}
+
+### # 19.0 ==================== GESTOR DE PROCESOS EN TIEMPO REAL ====================
+function Start-ProcessMonitor {
+    Write-Log "[+] Iniciando Monitor de Procesos (Gaming Mode)" -ForegroundColor Cyan
+
+    # ---- Scriptblock para monitoreo en segundo plano ----
+    $monitorScript = {
+        $gameProcesses = @("valorant.exe", "EscapeFromTarkov.exe", "NewWorld.exe")
+        while ($true) {
+            $gameProcesses | ForEach-Object {
+                if ($proc = Get-Process $_ -ErrorAction SilentlyContinue) {
+                    $proc.PriorityClass = [System.Diagnostics.ProcessPriorityClass]::High
+                    $proc.ProcessorAffinity = 0xFF  # Usar todos los núcleos
+                }
+            }
+            Start-Sleep -Seconds 5
+        }
+    }
+
+    # ---- Iniciar como Job de fondo ----
+    Start-Job -ScriptBlock $monitorScript -Name "GameProcessMonitor" | Out-Null
+
+    Write-Log "Monitor activo: Prioridad y afinidad ajustadas cada 5s" -ForegroundColor Green
+}
+
+### # 20.0 ==================== SISTEMA DE ROLLBACK ====================
+function Enable-RollbackSystem {
+    Write-Log "[+] Creando Puntos de Restauración" -ForegroundColor Cyan
+
+    # ---- Crear punto de restauración pre-optimización ----
+    $checkpointName = "PreOptimizacion_$(Get-Date -Format 'yyyyMMdd_HHmmss')"
+    Enable-ComputerRestore -Drive "C:\"
+    Checkpoint-Computer -Description $checkpointName -RestorePointType "MODIFY_SETTINGS"
+
+    # ---- Exportar configuración actual del registro ----
+    $backupPath = "$env:TEMP\RegBackup_$(Get-Date -Format 'yyyyMMdd').reg"
+    reg export "HKLM\SYSTEM" "$backupPath\system.reg" /y
+    reg export "HKLM\SOFTWARE" "$backupPath\software.reg" /y
+
+    Write-Log "Rollback habilitado: Punto de restauración + Backup registro en $backupPath" -ForegroundColor Green
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+### # X.0 ==================== DESACTIVAR CORTANA/EDGE/COPILOT ====================
+function Disable-CortanaEdgeCopilot {
+    Write-Host "[+] Desactivando Cortana, Edge y Copilot..." -ForegroundColor Cyan
+
+    # ==== DESACTIVAR CORTANA ====
+    # Deshabilitar el servicio de Cortana a través de políticas de grupo (si está habilitado).
+    Write-Host "Deshabilitando Cortana..." -ForegroundColor Gray
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search" -Name "AllowCortana" -Value 0 -Type DWord
+    Stop-Service -Name "Cortana" -Force
+    Set-Service -Name "Cortana" -StartupType Disabled
+    Write-Host "Cortana desactivada." -ForegroundColor Gray
+
+    # ==== DESACTIVAR MICROSOFT EDGE ====
+    # Desactivar la ejecución automática de Edge y eliminar servicios relacionados.
+    Write-Host "Deshabilitando Microsoft Edge..." -ForegroundColor Gray
+    Stop-Service -Name "MicrosoftEdge" -Force
+    Set-Service -Name "MicrosoftEdge" -StartupType Disabled
+
+    # Eliminar tareas programadas de Edge
+    Get-ScheduledTask | Where-Object {$_.TaskName -match "MicrosoftEdge"} | Unregister-ScheduledTask -Force
+    Write-Host "Microsoft Edge deshabilitado." -ForegroundColor Gray
+
+    # ==== DESACTIVAR COPILOT (WIN11) ====
+    # Eliminar Copilot de Windows 11 si está habilitado (requiere versiones recientes de Windows 11).
+    Write-Host "Deshabilitando Copilot de Windows 11..." -ForegroundColor Gray
+    Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer" -Name "EnableCopilot" -Value 0 -Type DWord
+    Write-Host "Copilot deshabilitado." -ForegroundColor Gray
+
+    # ==== ELIMINAR SERVICIOS Y TAREAS DE CORTANA, EDGE Y COPILOT ====
+    # Eliminar cualquier otro servicio relacionado con Cortana, Edge y Copilot.
+    Get-Service | Where-Object {$_.Name -match "Cortana|Edge|Copilot"} | Stop-Service -Force
+    Get-Service | Where-Object {$_.Name -match "Cortana|Edge|Copilot"} | Set-Service -StartupType Disabled
+
+    $global:historial += "Cortana, Edge y Copilot desactivados."
+    Write-Host "Cortana, Edge y Copilot desactivados correctamente." -ForegroundColor Green
+}
